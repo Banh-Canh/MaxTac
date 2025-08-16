@@ -1,0 +1,15 @@
+apiVersion: maxtac.vtk.io/v1alpha1
+kind: ExternalAccess
+metadata:
+  labels:
+    app.kubernetes.io/name: maxtac
+    app.kubernetes.io/managed-by: kustomize
+  name: allow-external
+spec:
+  targetCIDRs:
+    - 1.1.1.1/32
+    - 2001:4860:4860::8888/128
+  serviceSelector:
+    matchLabels:
+      externalaccess: yes
+  direction: ingress

@@ -1,0 +1,59 @@
+name: Build & Push
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '*.*.*'
+permissions:
+  contents: write
+jobs:
+  buildpush:
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - name: 'Set up skopeo'
+        uses: warjiang/setup-skopeo@main
+        with:
+          version: latest
+      - name: 'Sync images'
+        env:
+          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+        run: |
+          $(nix-build ./nix/oci.nix --argstr dockerVersion ${{ github.ref_name }}) > oci.tar
+          IMAGE_FULLNAME=$(tar -axf oci.tar manifest.json -O |jq -r '.[0].RepoTags[0]')
+          skopeo --version
+
+          DOCKER_IMAGE=$DOCKERHUB_USER/$IMAGE_FULLNAME
+          echo $DOCKER_IMAGE
+          skopeo copy --insecure-policy --dest-creds \
+          $DOCKERHUB_USER:$DOCKERHUB_PASSWORD \
+          docker-archive:oci.tar \
+          docker://$DOCKER_IMAGE
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.0'
+      - uses: cachix/install-nix-action@ba0dd844c9180cbf77aa72a116d6fbc515d0e87b # v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+          workdir: ./
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUBLISHER_TOKEN }}

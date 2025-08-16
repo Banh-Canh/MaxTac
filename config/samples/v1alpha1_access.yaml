@@ -1,0 +1,18 @@
+apiVersion: maxtac.vtk.io/v1alpha1
+kind: Access
+metadata:
+  labels:
+    app.kubernetes.io/name: maxtac
+    app.kubernetes.io/managed-by: kustomize
+  name: access-sample
+spec:
+  serviceSelector:
+    matchLabels:
+      database: things
+  targets:
+    - serviceName: zitadel
+      namespace: zitadel
+    - serviceName: ombi
+      namespace: ombi
+  direction: all
+  mirrored: true

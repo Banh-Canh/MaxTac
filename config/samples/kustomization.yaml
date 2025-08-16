@@ -1,0 +1,6 @@
+## Append samples of your project ##
+resources:
+  - v1alpha1_access.yaml
+  - v1alpha1_externalaccess.yaml
+  - servicesample.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples
