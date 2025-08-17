@@ -38,6 +38,21 @@ When a service is deleted or its labels/annotations change, the controller autom
 
 ---
 
+# 📦 Installation
+
+Installing MaxTac is straightforward. You just need to apply the installation manifest to your Kubernetes cluster using kubectl. This single file typically includes the Custom Resource Definitions (CRDs), the controller's Deployment, and the necessary RBAC (Role-Based Access Control) permissions.
+
+First, download the official installation manifest, let's call it maxtac-installer.yaml. Then, apply it with the following command:
+
+```bash
+VERSION=v0.0.2
+kubectl apply -f https://github.com/Banh-Canh/MaxTac/releases/download/<VERSION>/bundle.yaml
+```
+
+This will create the maxtac-system namespace and all the required resources,
+
+---
+
 # 📜 Custom Resource Reference
 
 ### `ExternalAccess`
