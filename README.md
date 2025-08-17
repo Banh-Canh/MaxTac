@@ -10,6 +10,8 @@ The controller monitors these CRs and specially annotated `Service` resources to
 
 With MaxTac, it is possible to open an ingress/egress from/to an ip or a group of pods, with one resource Access or External Access, and delete it or recreate it all at once in a few seconds.
 
+It is especially useful, if you desire to manage dynamically multiple netpols at once or if you want to set network rules if a more straightforward way.
+
 ---
 
 ## ✨ Core Concepts
