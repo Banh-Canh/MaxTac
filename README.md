@@ -8,7 +8,7 @@ MaxTac is a Kubernetes controller that simplifies and automates the management o
 
 The controller monitors these CRs and specially annotated `Service` resources to dynamically create, update, and delete the underlying Kubernetes `NetworkPolicy` objects, ensuring the cluster's network state always matches your desired intent.
 
-With MaxTac, it is possible to open an ingress/egress from/to an ip or a group of pods, with one resource Access or External Access, and delete it all at once.
+With MaxTac, it is possible to open an ingress/egress from/to an ip or a group of pods, with one resource Access or External Access, and delete it or recreate it all at once in a few seconds.
 
 ---
 
