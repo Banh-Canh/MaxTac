@@ -72,6 +72,16 @@ kubectl apply -f https://github.com/Banh-Canh/MaxTac/releases/download/$VERSION/
 
 This will create the maxtac-system namespace and all the required resources,
 
+You should be able to see the controller running:
+
+```bash
+k get po -n maxtac-system
+NAME                                         READY   STATUS    RESTARTS   AGE
+maxtac-controller-manager-5f5544b549-w8vhn   1/1     Running   0          112s
+```
+
+You can now apply any Access or ExternalAccess object.
+
 ---
 
 # 📜 Custom Resource Reference
