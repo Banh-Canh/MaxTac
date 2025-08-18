@@ -2,6 +2,23 @@
 
 <img src="public/maxtac.png" width="130" style="margin: 15px;" align=center />
 
+## Table of Contents
+
+- [ℹ️ Description](#️-description)
+- [✨ Core Concepts](#-core-concepts)
+  - [1. `Access`: For Intra-Cluster Communication](#1-access-for-intra-cluster-communication)
+  - [2. `ExternalAccess`: For External Communication](#2-externalaccess-for-external-communication)
+- [⚙️ How It Works](#️-how-it-works)
+- [📦 Installation](#-installation)
+- [📜 Custom Resource Reference](#-custom-resource-reference)
+  - [`ExternalAccess`](#externalaccess)
+  - [`Access`](#access)
+- [🏷️ Service Annotation Reference](#️-service-annotation-reference)
+  - [For `ExternalAccess`](#for-externalaccess)
+  - [For `Access`](#for-access)
+- [ℹ️ Status reference](#️-status-reference)
+- [🚀 Usage Example Walkthrough](#-usage-example-walkthrough)
+
 ## ℹ️ Description
 
 MaxTac is a Kubernetes controller that simplifies and automates the management of `NetworkPolicy` resources. It works by introducing two Custom Resource Definitions (CRDs), `Access` and `ExternalAccess`, which allow you to define network connectivity rules at a higher level of abstraction.
@@ -65,9 +82,9 @@ This resource grants services access to an external CIDR.
 
 **Spec Fields:**
 
-- `targetCIDRs` ([]string, required): The external IPs range to allow traffic to/from. Example: `1.1.1.1/32, 2001:4860:4860::8888/128`.
+- `targetCIDRs` (`[]string`, required): The external IPs range to allow traffic to/from. Example: `1.1.1.1/32, 2001:4860:4860::8888/128`.
 - `serviceSelector` (`metav1.LabelSelector`, required): A label selector to find `Service` resources that should be granted this access.
-- `direction` (string, optional): Set the policy type of the network policy. Can be overrided by annotation on the service.
+- `direction` (`string`, optional): Set the policy type of the network policy. Can be overrided by annotation on the service.
 
 **Example (`externalaccess-sample.yaml`):**
 
@@ -90,11 +107,11 @@ spec:
 
 **Spec Fields:**
 
-- `serviceSelector` (metav1.LabelSelector, required): A label selector to find "source" Service resources that will be granted access to a target.
-- `[x]targets.serviceName` (string, optional): the name of the service to be targeted. Can be overrided by an annotation on the service.
-- `[x]targets.namespace` (string, optional): the namespace of the service to be targeted. Can be overrided by an annotation on the service.
-- `direction` (string, optional): Set the policy type of the network policy. Can be overrided by annotation on the service.
-- `mirrored` (bool, optional): Set if the policy will be mirrored, as in completed by an ingress in the targeted namespace if the netpol to be created is an egress from the source namespace.
+- `serviceSelector` (`metav1.LabelSelector`, required): A label selector to find "source" Service resources that will be granted access to a target.
+- `[x]targets.serviceName` (`string`, optional): the name of the service to be targeted. Can be overrided by an annotation on the service.
+- `[x]targets.namespace` (`string`, optional): the namespace of the service to be targeted. Can be overrided by an annotation on the service.
+- `direction` (`string`, optional): Set the policy type of the network policy. Can be overrided by annotation on the service.
+- `mirrored` (`bool`, optional): Set if the policy will be mirrored, as in completed by an ingress in the targeted namespace if the netpol to be created is an egress from the source namespace.
 
 **Example (`access-sample.yaml`):**
 
