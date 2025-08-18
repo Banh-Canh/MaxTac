@@ -65,10 +65,11 @@ const (
 func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger.Logger.Debug("Starting reconciliation for ExternalAccess object", "name", req.NamespacedName)
 	externalaccess := &vtkiov1alpha1.ExternalAccess{}
+	var deployedNetpols []vtkiov1alpha1.Netpol
 
 	if err := r.Get(ctx, req.NamespacedName, externalaccess); err != nil {
 		if k8serrors.IsNotFound(err) {
-			logger.Logger.Info("ExternalAccess resource not found. Ignoring since object must be deleted.")
+			logger.Logger.Debug("ExternalAccess resource not found. Ignoring since object must be deleted.")
 			return ctrl.Result{}, nil
 		}
 		logger.Logger.Error("Failed to get ExternalAccess resource.", slog.Any("error", err))
@@ -102,7 +103,12 @@ func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Iterate over each service found by the selector
+	var matchedServices []vtkiov1alpha1.SvcRef
 	for _, service := range serviceList.Items {
+		matchedServices = append(matchedServices, vtkiov1alpha1.SvcRef{
+			Name:      service.Name,
+			Namespace: service.Namespace,
+		})
 		var targetsStr string
 		var direction string
 
@@ -182,7 +188,7 @@ func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 		// This annotated service is our source.
 		logger.Logger.Info(
-			"Found matched and annotated service",
+			"Found matched service",
 			"source_service",
 			service.Name,
 			"namespace",
@@ -274,11 +280,32 @@ func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			if err := r.deployResource(ctx, externalaccess, netpol, &networkingv1.NetworkPolicy{}, networkpolicy.ExtractNetpolSpec, false); err != nil {
 				logger.Logger.Error("Error deploying NetworkPolicy.", slog.Any("error", err), "netpol_name", netpolName)
 				// Continue to the next CIDR even if this one fails
+			} else {
+				logger.Logger.Info("Successfully deployed target NetworkPolicy", "name", netpol.Name, "namespace", netpol.Namespace)
+				deployedNetpols = append(deployedNetpols, vtkiov1alpha1.Netpol{
+					Name:      netpol.Name,
+					Namespace: netpol.Namespace,
+				})
 			}
+
 		}
 	}
 
 	// Set access ready status
+	// Update netpols in status
+	finalNetpols, err := r.reconcileNetpolStatus(ctx, externalaccess, deployedNetpols)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Update services in status
+	finalServices, err := r.reconcileServiceStatus(ctx, externalaccess, matchedServices)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	externalaccess.Status.Netpols = finalNetpols
+	externalaccess.Status.Services = finalServices
 	if err := r.updateStatus(ctx, externalaccess); err != nil {
 		logger.Logger.Error("Error updating status.", slog.Any("error", err))
 	}

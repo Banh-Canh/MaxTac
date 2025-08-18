@@ -66,10 +66,11 @@ type AccessReconciler struct {
 func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger.Logger.Debug("Starting reconciliation for Access object", "name", req.NamespacedName)
 	access := &vtkiov1alpha1.Access{}
+	var deployedNetpols []vtkiov1alpha1.Netpol
 
 	if err := r.Get(ctx, req.NamespacedName, access); err != nil {
 		if k8serrors.IsNotFound(err) {
-			logger.Logger.Info("Access resource not found. Ignoring since object must be deleted.")
+			logger.Logger.Debug("Access resource not found. Ignoring since object must be deleted.")
 			return ctrl.Result{}, nil
 		}
 		logger.Logger.Error("Failed to get Access resource.", slog.Any("error", err))
@@ -103,7 +104,12 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Iterate over each service found by the selector
+	var matchedServices []vtkiov1alpha1.SvcRef
 	for _, service := range serviceList.Items {
+		matchedServices = append(matchedServices, vtkiov1alpha1.SvcRef{
+			Name:      service.Name,
+			Namespace: service.Namespace,
+		})
 
 		var targetsStr string
 		var direction string
@@ -191,7 +197,7 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		// This annotated service is our source.
 		logger.Logger.Info(
-			"Found matched and annotated service",
+			"Found matched service",
 			"source_service",
 			service.Name,
 			"namespace",
@@ -276,7 +282,7 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 			// Create the corresponding NetworkPolicy for the TARGET namespace ONLY IF Mirrored is true
 			if access.Spec.Mirrored {
-				logger.Logger.Info(
+				logger.Logger.Debug(
 					"Mirrored flag is set to true, creating corresponding NetworkPolicy in target namespace",
 					"target_namespace",
 					targetNs,
@@ -321,12 +327,30 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 					logger.Logger.Error("Error deploying target NetworkPolicy.", slog.Any("error", err), "netpol_name", targetNetpolName)
 				} else {
 					logger.Logger.Info("Successfully deployed target NetworkPolicy", "name", targetNetpolName, "namespace", targetNs)
+					deployedNetpols = append(deployedNetpols, vtkiov1alpha1.Netpol{
+						Name:      targetNetpolName,
+						Namespace: targetNs,
+					})
 				}
 			}
 		}
 	}
 
 	// Set access ready status
+	// Update netpols in status
+	finalNetpols, err := r.reconcileNetpolStatus(ctx, access, deployedNetpols)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Update services in status
+	finalServices, err := r.reconcileServiceStatus(ctx, access, matchedServices)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	access.Status.Netpols = finalNetpols
+	access.Status.Services = finalServices
 	if err := r.updateStatus(ctx, access); err != nil {
 		logger.Logger.Error("Error updating status.", slog.Any("error", err))
 	}

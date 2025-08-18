@@ -41,6 +41,10 @@ type ExternalAccessSpec struct {
 type ExternalAccessStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	Netpols  []Netpol `json:"netpols,omitempty"`
+	Services []SvcRef `json:"services,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	Conditions []metav1.Condition `json:"conditions"`
 }

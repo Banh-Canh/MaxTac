@@ -85,7 +85,7 @@ func (r *ExternalAccessReconciler) createResource(
 		logger.Logger.Error("Failed to set conditions.", slog.Any("error", err))
 	}
 
-	logger.Logger.Info("Created resource.", slog.String("resource", resource.GetName()))
+	logger.Logger.Debug("Created resource.", slog.String("resource", resource.GetName()))
 	return nil
 }
 
@@ -271,12 +271,31 @@ func (r *ExternalAccessReconciler) cleanupOrphanedNetworkPolicies(ctx context.Co
 	}
 	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
 	if err != nil {
+		if err := r.setCondition(
+			externalaccess,
+			"NetpolsGCNotReady",
+			"NetpolsGCUnsuccessful",
+			"Failed to garbage collect any orphaned netpols resources.",
+			metav1.ConditionFalse,
+		); err != nil {
+			logger.Logger.Error("Failed to set conditions.", slog.Any("error", err))
+		}
 		return fmt.Errorf("failed to create selector for cleanup: %w", err)
 	}
 
 	// List all NetworkPolicies matching the selector cluster-wide.
 	ownedNetPols := &networkingv1.NetworkPolicyList{}
 	if err := r.List(ctx, ownedNetPols, &client.ListOptions{LabelSelector: selector}); err != nil {
+		if err := r.setCondition(
+			externalaccess,
+			"NetpolsGCNotReady",
+			"NetpolsGCUnsuccessful",
+			"Failed to garbage collect any orphaned netpols resources.",
+			metav1.ConditionFalse,
+		); err != nil {
+			logger.Logger.Error("Failed to set conditions.", slog.Any("error", err))
+		}
+
 		return fmt.Errorf("failed to list owned NetworkPolicies for cleanup: %w", err)
 	}
 
@@ -296,7 +315,7 @@ func (r *ExternalAccessReconciler) cleanupOrphanedNetworkPolicies(ctx context.Co
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				// The service is gone, so the NetworkPolicy is orphaned. Delete it.
-				logger.Logger.Info(
+				logger.Logger.Debug(
 					"Deleting orphaned NetworkPolicy as its owner service is not found",
 					"netpol",
 					netpol.Name,
@@ -308,10 +327,39 @@ func (r *ExternalAccessReconciler) cleanupOrphanedNetworkPolicies(ctx context.Co
 				if deleteErr := r.Delete(ctx, &netpol); deleteErr != nil {
 					// Log the error but continue trying to clean up others.
 					logger.Logger.Error("Failed to delete orphaned NetworkPolicy", slog.Any("error", deleteErr), "netpol", netpol.Name)
+					if err := r.setCondition(
+						externalaccess,
+						"NetpolsGCNotReady",
+						"NetpolsGCUnsuccessful",
+						"Failed to garbage collect any orphaned netpols resources.",
+						metav1.ConditionFalse,
+					); err != nil {
+						logger.Logger.Error("Failed to set conditions.", slog.Any("error", err))
+					}
+
 				}
+				if err := r.setCondition(
+					externalaccess,
+					"NetpolsGCReady",
+					"NetpolsGCSuccess",
+					"Successfully garbage collected any orphaned netpols resources.",
+					metav1.ConditionTrue,
+				); err != nil {
+					logger.Logger.Error("Failed to set conditions.", slog.Any("error", err))
+				}
+
 			} else {
 				// Another error occurred while trying to get the service.
 				logger.Logger.Error("Error checking for owner service existence during cleanup", slog.Any("error", err), "netpol", netpol.Name)
+				if err := r.setCondition(
+					externalaccess,
+					"NetpolsGCNotReady",
+					"NetpolsGCUnsuccessful",
+					"Failed to garbage collect any orphaned netpols resources.",
+					metav1.ConditionFalse,
+				); err != nil {
+					logger.Logger.Error("Failed to set conditions.", slog.Any("error", err))
+				}
 				// Continue to the next netpol, but the main reconcile loop might return this error later.
 			}
 		}
@@ -349,4 +397,125 @@ func (r *ExternalAccessReconciler) getServiceDetails(
 
 	// Return the selector and the ports
 	return service.Spec.Selector, service.Spec.Ports, nil
+}
+
+func (r *ExternalAccessReconciler) reconcileNetpolStatus(
+	ctx context.Context,
+	access *vtkiov1alpha1.ExternalAccess,
+	deployedNetpols []vtkiov1alpha1.Netpol,
+) ([]vtkiov1alpha1.Netpol, error) {
+	var existingNetpols []vtkiov1alpha1.Netpol
+	for _, np := range access.Status.Netpols {
+		netpol := &networkingv1.NetworkPolicy{}
+		err := r.Get(ctx, types.NamespacedName{Name: np.Name, Namespace: np.Namespace}, netpol)
+		if err == nil {
+			existingNetpols = append(existingNetpols, np)
+		} else if !k8serrors.IsNotFound(err) {
+			logger.Logger.Error("Error fetching existing netpol", slog.Any("error", err),
+				"name", np.Name, "namespace", np.Namespace)
+			if err = r.setCondition(
+				access,
+				"NetpolsListNotReady",
+				"NetpolsSyncUnSuccessful",
+				"Unsuccessfully synced all matching netpols child resources.",
+				metav1.ConditionFalse,
+			); err != nil {
+				logger.Logger.Error("Failed to set conditions.", slog.Any("error", err))
+			}
+			return nil, err
+		} else {
+			logger.Logger.Debug("Removing non-existent netpol from status",
+				"name", np.Name, "namespace", np.Namespace)
+			r.StatusNeedUpdate = true
+		}
+	}
+
+	// Build final list
+	finalNetpols := make([]vtkiov1alpha1.Netpol, 0, len(existingNetpols)+len(deployedNetpols))
+	finalNetpols = append(finalNetpols, existingNetpols...)
+	finalNetpols = append(finalNetpols, deployedNetpols...)
+
+	// Deduplicate
+	unique := make(map[string]vtkiov1alpha1.Netpol)
+	for _, np := range finalNetpols {
+		key := fmt.Sprintf("%s/%s", np.Namespace, np.Name)
+		unique[key] = np
+	}
+
+	finalNetpols = finalNetpols[:0]
+	for _, np := range unique {
+		finalNetpols = append(finalNetpols, np)
+	}
+
+	if err := r.setCondition(
+		access,
+		"NetpolsListReady",
+		"NetpolsSyncSuccess",
+		"Successfully synced all matching netpols child resources.",
+		metav1.ConditionTrue,
+	); err != nil {
+		logger.Logger.Error("Failed to set conditions.", slog.Any("error", err))
+	}
+
+	return finalNetpols, nil
+}
+
+func (r *ExternalAccessReconciler) reconcileServiceStatus(
+	ctx context.Context,
+	access *vtkiov1alpha1.ExternalAccess,
+	matchedServices []vtkiov1alpha1.SvcRef,
+) ([]vtkiov1alpha1.SvcRef, error) {
+	var existingServices []vtkiov1alpha1.SvcRef
+	for _, s := range access.Status.Services {
+		svc := &corev1.Service{}
+		err := r.Get(ctx, types.NamespacedName{Name: s.Name, Namespace: s.Namespace}, svc)
+		if err == nil {
+			existingServices = append(existingServices, s)
+		} else if !k8serrors.IsNotFound(err) {
+			if err = r.setCondition(
+				access,
+				"ServicesListNotReady",
+				"ServicesSyncUnSuccessful",
+				"Unsuccessfully synced all matching services child resources.",
+				metav1.ConditionFalse,
+			); err != nil {
+				logger.Logger.Error("Failed to set conditions.", slog.Any("error", err))
+			}
+			logger.Logger.Error("Error fetching existing service", slog.Any("error", err),
+				"name", s.Name, "namespace", s.Namespace)
+			return nil, err
+		} else {
+			logger.Logger.Debug("Removing non-existent service from status",
+				"name", s.Name, "namespace", s.Namespace)
+			r.StatusNeedUpdate = true
+		}
+	}
+
+	// Build final list
+	finalServices := make([]vtkiov1alpha1.SvcRef, 0, len(existingServices)+len(matchedServices))
+	finalServices = append(finalServices, existingServices...)
+	finalServices = append(finalServices, matchedServices...)
+
+	// Deduplicate
+	unique := make(map[string]vtkiov1alpha1.SvcRef)
+	for _, s := range finalServices {
+		key := fmt.Sprintf("%s/%s", s.Namespace, s.Name)
+		unique[key] = s
+	}
+
+	finalServices = finalServices[:0]
+	for _, s := range unique {
+		finalServices = append(finalServices, s)
+	}
+	if err := r.setCondition(
+		access,
+		"ServicesListReady",
+		"ServicesSyncSuccess",
+		"Successfully synced all matching services child resources.",
+		metav1.ConditionTrue,
+	); err != nil {
+		logger.Logger.Error("Failed to set conditions.", slog.Any("error", err))
+	}
+
+	return finalServices, nil
 }

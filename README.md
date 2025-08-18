@@ -2,7 +2,7 @@
 
 <img src="public/maxtac.png" width="130" style="margin: 15px;" align=center />
 
-## Description
+## ℹ️ Description
 
 MaxTac is a Kubernetes controller that simplifies and automates the management of `NetworkPolicy` resources. It works by introducing two Custom Resource Definitions (CRDs), `Access` and `ExternalAccess`, which allow you to define network connectivity rules at a higher level of abstraction.
 
@@ -44,10 +44,12 @@ When a service is deleted or its labels/annotations change, the controller autom
 
 Installing MaxTac is straightforward. You just need to apply the installation manifest to your Kubernetes cluster using kubectl. This single file typically includes the Custom Resource Definitions (CRDs), the controller's Deployment, and the necessary RBAC (Role-Based Access Control) permissions.
 
-First, download the official installation manifest, let's call it maxtac-installer.yaml. Then, apply it with the following command:
+Just set the variable using the latest release or the desired version.
+
+![GitHub VERSION (latest by date)](https://img.shields.io/github/v/release/Banh-Canh/MaxTac?label=Latest%20Release)
 
 ```bash
-VERSION=v0.0.2
+VERSION=vX.X.X
 kubectl apply -f https://github.com/Banh-Canh/MaxTac/releases/download/$VERSION/bundle.yaml
 ```
 
@@ -173,6 +175,47 @@ When a `Service` is matched by an `Access` resource's `serviceSelector`, it must
   - **Example**: `maxtac.vtk.io.access/direction: "egress"` allows the pods behind the annotated service to connect to the target service.
 
 ---
+
+## ℹ️ Status reference
+
+```yaml
+status:
+  conditions:
+    - lastTransitionTime: '2025-08-18T08:50:48Z'
+      message: Successfully created all 'NetworkPolicy' child resources.
+      reason: NetworkPolicyCreateSuccess
+      status: 'True'
+      type: NetworkPolicyDeployReady
+    - lastTransitionTime: '2025-08-18T08:50:49Z'
+      message: Successfully synced all matching netpols child resources.
+      reason: NetpolsSyncSuccess
+      status: 'True'
+      type: NetpolsListReady
+    - lastTransitionTime: '2025-08-18T08:50:49Z'
+      message: Successfully synced all matching services child resources.
+      reason: ServicesSyncSuccess
+      status: 'True'
+      type: ServicesListReady
+    - lastTransitionTime: '2025-08-18T08:50:49Z'
+      message: All conditions are met.
+      reason: AllConditionsReady
+      status: 'True'
+      type: Ready
+  netpols: ## List generated netpols by this access
+    - name: access-sample--zitadel-zitadel---zitadel-postgres-zitadel-all-mirror
+      namespace: zitadel
+    - name: access-sample--ombi-ombi---zitadel-postgres-zitadel-all-mirror
+      namespace: ombi
+    - name: access-sample--zitadel-zitadel---ombi-postgres-ombi-all-mirror
+      namespace: zitadel
+    - name: access-sample--ombi-ombi---ombi-postgres-ombi-all-mirror
+      namespace: ombi
+  services: ## List matched services by this access
+    - name: postgres-zitadel
+      namespace: zitadel
+    - name: postgres-ombi
+      namespace: ombi
+```
 
 ## 🚀 Usage Example Walkthrough
 

@@ -49,8 +49,22 @@ type AccessPoint struct {
 type AccessStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	Netpols  []Netpol `json:"netpols,omitempty"`
+	Services []SvcRef `json:"services,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	Conditions []metav1.Condition `json:"conditions"`
+}
+
+type Netpol struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+type SvcRef struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 // +kubebuilder:object:root=true
