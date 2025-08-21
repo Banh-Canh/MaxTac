@@ -41,6 +41,8 @@ spec:
             properties:
               direction:
                 type: string
+              duration:
+                type: string
               serviceSelector:
                 description: |-
                   A label selector is a label query over a set of resources. The result of matchLabels and
@@ -156,6 +158,9 @@ spec:
                   - type
                   type: object
                 type: array
+              expirationTimestamp:
+                format: date-time
+                type: string
               netpols:
                 description: |-
                   INSERT ADDITIONAL STATUS FIELD - define observed state of cluster

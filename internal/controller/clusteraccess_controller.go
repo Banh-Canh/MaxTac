@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -77,9 +78,14 @@ func (r *ClusterAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	// Finalizers
-	if err := r.addFinalizer(ctx, access); err != nil {
-		logger.Logger.Error("Error adding finalizer.", slog.Any("error", err))
+	// Check for expiration and handle deletion if necessary.
+	if r.isExpired(access) {
+		logger.Logger.Info("ClusterAccess resource has expired, deleting it now.", "name", access.Name)
+		if err := r.Delete(ctx, access); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to delete expired ClusterAccess resource: %w", err)
+		}
+		// A deletion request was sent, no need to do further work in this reconcile loop.
+		return ctrl.Result{}, nil
 	}
 
 	// At each reconciliation, check for any NetworkPolicies owned by this ClusterAccess
@@ -360,8 +366,13 @@ func (r *ClusterAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Logger.Error("Error updating status.", slog.Any("error", err))
 	}
 
-	if err := r.removeFinalizer(ctx, access); err != nil {
-		logger.Logger.Error("Error removing finalizer.", slog.Any("error", err))
+	// Calculate and return a targeted requeue duration if the resource has an expiration.
+	if access.Status.ExpirationTimestamp != nil {
+		timeRemaining := time.Until(access.Status.ExpirationTimestamp.Time)
+		if timeRemaining > 0 {
+			logger.Logger.Debug("Requeuing to check for expiration.", "name", access.Name, "duration", timeRemaining)
+			return ctrl.Result{RequeueAfter: timeRemaining}, nil
+		}
 	}
 
 	return ctrl.Result{}, nil

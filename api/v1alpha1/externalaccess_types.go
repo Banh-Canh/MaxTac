@@ -35,6 +35,9 @@ type ExternalAccessSpec struct {
 	ServiceSelector *metav1.LabelSelector `json:"serviceSelector"`
 	// +kubebuilder:validation:Optional
 	Direction string `json:"direction"`
+
+	// +kubebuilder:validation:Optional
+	Duration string `json:"duration,omitempty"`
 }
 
 // ExternalAccessStatus defines the observed state of ExternalAccess.
@@ -45,7 +48,8 @@ type ExternalAccessStatus struct {
 	Services []SvcRef `json:"services,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	Conditions []metav1.Condition `json:"conditions"`
+	Conditions          []metav1.Condition `json:"conditions"`
+	ExpirationTimestamp *metav1.Time       `json:"expirationTimestamp,omitempty"`
 }
 
 // +kubebuilder:object:root=true

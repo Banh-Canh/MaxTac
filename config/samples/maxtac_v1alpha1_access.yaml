@@ -16,3 +16,4 @@ spec:
     - serviceName: ombi
       namespace: ombi
   direction: all
+  duration: 5s

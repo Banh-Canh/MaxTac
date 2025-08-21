@@ -36,6 +36,9 @@ type AccessSpec struct {
 
 	// +kubebuilder:validation:Optional
 	Direction string `json:"direction"`
+
+	// +kubebuilder:validation:Optional
+	Duration string `json:"duration,omitempty"`
 }
 
 // AccessStatus defines the observed state of Access.
@@ -48,6 +51,8 @@ type AccessStatus struct {
 
 	// +kubebuilder:validation:Optional
 	Conditions []metav1.Condition `json:"conditions"`
+
+	ExpirationTimestamp *metav1.Time `json:"expirationTimestamp,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -41,6 +41,8 @@ spec:
             properties:
               direction:
                 type: string
+              duration:
+                type: string
               mirrored:
                 type: boolean
               serviceSelector:
@@ -165,6 +167,9 @@ spec:
                   - type
                   type: object
                 type: array
+              expirationTimestamp:
+                format: date-time
+                type: string
               netpols:
                 items:
                   properties:

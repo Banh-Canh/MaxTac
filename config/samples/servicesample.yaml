@@ -25,6 +25,7 @@ kind: Service
 metadata:
   labels:
     database: things
+    externalaccess: yes
   name: postgres-ombi
   namespace: ombi
 spec:

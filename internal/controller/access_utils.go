@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"maps"
 	"reflect"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -18,6 +19,7 @@ import (
 
 	vtkiov1alpha1 "github.com/Banh-Canh/maxtac/api/v1alpha1"
 	"github.com/Banh-Canh/maxtac/internal/utils/logger"
+	"github.com/Banh-Canh/maxtac/internal/utils/utils"
 )
 
 func (r *AccessReconciler) deployResource(
@@ -519,4 +521,42 @@ func (r *AccessReconciler) reconcileServiceStatus(
 	}
 
 	return finalServices, nil
+}
+
+// isExpired is a helper function that checks if a resource has expired.
+func (r *AccessReconciler) isExpired(access *vtkiov1alpha1.Access) bool {
+	// If the user has specified a duration and we haven't calculated the expiration timestamp yet...
+	if access.Spec.Duration != "" && access.Status.ExpirationTimestamp == nil {
+		// Use a helper to parse the duration string, including 'd' for days.
+		duration, err := utils.ParseDuration(access.Spec.Duration)
+		if err != nil {
+			logger.Logger.Error("Invalid duration format.", "duration", access.Spec.Duration, "error", err)
+			return false // Do not expire, the user needs to fix the spec.
+		}
+
+		// Calculate the absolute expiration time based on the resource's creation timestamp.
+		expirationTime := access.CreationTimestamp.Add(duration)
+
+		// Create a variable to hold the value so we can take its address.
+		newTime := metav1.NewTime(expirationTime)
+		access.Status.ExpirationTimestamp = &newTime
+		if err := r.setCondition(
+			access,
+			"ExpireReady",
+			"ExpireSuccess",
+			"The resource has an expiration date.",
+			metav1.ConditionTrue,
+		); err != nil {
+			logger.Logger.Error("Failed to set conditions.", slog.Any("error", err))
+			return false
+		}
+
+		logger.Logger.Info("Expiration timestamp set.", "name", access.Name, "expiresAt", access.Status.ExpirationTimestamp.Time)
+	}
+	// Check if the calculated expiration timestamp has passed.
+	if access.Status.ExpirationTimestamp != nil && time.Now().After(access.Status.ExpirationTimestamp.Time) {
+		return true
+	}
+
+	return false // The resource is not expired.
 }

@@ -38,6 +38,9 @@ type ClusterAccessSpec struct {
 
 	// +kubebuilder:validation:Optional
 	Mirrored bool `json:"mirrored,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	Duration string `json:"duration,omitempty"`
 }
 
 type AccessPoint struct {
@@ -54,7 +57,8 @@ type ClusterAccessStatus struct {
 	Services []SvcRef `json:"services,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	Conditions []metav1.Condition `json:"conditions"`
+	Conditions          []metav1.Condition `json:"conditions"`
+	ExpirationTimestamp *metav1.Time       `json:"expirationTimestamp,omitempty"`
 }
 
 type Netpol struct {

@@ -35,6 +35,9 @@ type ClusterExternalAccessSpec struct {
 	ServiceSelector *metav1.LabelSelector `json:"serviceSelector"`
 	// +kubebuilder:validation:Optional
 	Direction string `json:"direction"`
+
+	// +kubebuilder:validation:Optional
+	Duration string `json:"duration,omitempty"`
 }
 
 // ClusterExternalAccessStatus defines the observed state of ClusterExternalAccess.
@@ -46,7 +49,8 @@ type ClusterExternalAccessStatus struct {
 	Services []SvcRef `json:"services,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	Conditions []metav1.Condition `json:"conditions"`
+	Conditions          []metav1.Condition `json:"conditions"`
+	ExpirationTimestamp *metav1.Time       `json:"expirationTimestamp,omitempty"`
 }
 
 // +kubebuilder:object:root=true
