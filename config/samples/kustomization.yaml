@@ -1,6 +1,8 @@
 ## Append samples of your project ##
 resources:
-  - v1alpha1_access.yaml
-  - v1alpha1_externalaccess.yaml
   - servicesample.yaml
+  - maxtac_v1alpha1_access.yaml
+  - maxtac_v1alpha1_clusteraccess.yaml
+  - maxtac_v1alpha1_externalaccess.yaml
+  - maxtac_v1alpha1_clusterexternalaccess.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

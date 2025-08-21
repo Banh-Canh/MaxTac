@@ -41,7 +41,6 @@ type ExternalAccessSpec struct {
 type ExternalAccessStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
 	Netpols  []Netpol `json:"netpols,omitempty"`
 	Services []SvcRef `json:"services,omitempty"`
 
@@ -51,7 +50,6 @@ type ExternalAccessStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster
 
 // ExternalAccess is the Schema for the externalaccesses API.
 type ExternalAccess struct {

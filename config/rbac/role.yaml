@@ -16,6 +16,8 @@ rules:
   - maxtac.vtk.io
   resources:
   - accesses
+  - clusteraccesses
+  - clusterexternalaccesses
   - externalaccesses
   verbs:
   - create
@@ -29,6 +31,8 @@ rules:
   - maxtac.vtk.io
   resources:
   - accesses/finalizers
+  - clusteraccesses/finalizers
+  - clusterexternalaccesses/finalizers
   - externalaccesses/finalizers
   verbs:
   - update
@@ -36,6 +40,8 @@ rules:
   - maxtac.vtk.io
   resources:
   - accesses/status
+  - clusteraccesses/status
+  - clusterexternalaccesses/status
   - externalaccesses/status
   verbs:
   - get

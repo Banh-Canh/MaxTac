@@ -20,9 +20,9 @@ import (
 	"github.com/Banh-Canh/maxtac/internal/utils/logger"
 )
 
-func (r *ExternalAccessReconciler) deployResource(
+func (r *ClusterExternalAccessReconciler) deployResource(
 	ctx context.Context,
-	access *vtkiov1alpha1.ExternalAccess,
+	access *vtkiov1alpha1.ClusterExternalAccess,
 	resource, resourceType client.Object,
 	extractSpecFunc func(client.Object) any,
 	disableOwnerRef bool,
@@ -48,9 +48,9 @@ func (r *ExternalAccessReconciler) deployResource(
 	return nil
 }
 
-func (r *ExternalAccessReconciler) createResource(
+func (r *ClusterExternalAccessReconciler) createResource(
 	ctx context.Context,
-	owner *vtkiov1alpha1.ExternalAccess,
+	owner *vtkiov1alpha1.ClusterExternalAccess,
 	resource client.Object,
 	disableOwnerRef bool,
 ) error {
@@ -89,9 +89,9 @@ func (r *ExternalAccessReconciler) createResource(
 	return nil
 }
 
-func (r *ExternalAccessReconciler) deleteResource(
+func (r *ClusterExternalAccessReconciler) deleteResource(
 	ctx context.Context,
-	owner *vtkiov1alpha1.ExternalAccess,
+	owner *vtkiov1alpha1.ClusterExternalAccess,
 	resource client.Object,
 	resourceType client.Object,
 ) error {
@@ -139,9 +139,9 @@ func (r *ExternalAccessReconciler) deleteResource(
 	return nil
 }
 
-func (r *ExternalAccessReconciler) reconcileResource(
+func (r *ClusterExternalAccessReconciler) reconcileResource(
 	ctx context.Context,
-	owner *vtkiov1alpha1.ExternalAccess,
+	owner *vtkiov1alpha1.ClusterExternalAccess,
 	resource, existingResource client.Object,
 	specExtractor func(client.Object) any,
 	disableOwnerRef bool,
@@ -259,17 +259,17 @@ func (r *ExternalAccessReconciler) reconcileResource(
 	return nil
 }
 
-// cleanupOrphanedNetworkPolicies finds all NetworkPolicies managed by this ExternalAccess
+// cleanupOrphanedNetworkPolicies finds all NetworkPolicies managed by this ClusterExternalAccess
 // and deletes any for which the corresponding Service no longer exists.
-func (r *ExternalAccessReconciler) cleanupOrphanedNetworkPolicies(
+func (r *ClusterExternalAccessReconciler) cleanupOrphanedNetworkPolicies(
 	ctx context.Context,
-	externalaccess *vtkiov1alpha1.ExternalAccess,
+	externalaccess *vtkiov1alpha1.ClusterExternalAccess,
 ) error {
 	logger.Logger.Info("Starting cleanup of orphaned NetworkPolicies", "externalaccess", externalaccess.Name)
 
 	labelSelector := &metav1.LabelSelector{
 		MatchLabels: map[string]string{
-			ExternalAccessOwnerLabel: externalaccess.Name,
+			ClusterExternalAccessOwnerLabel: externalaccess.Name,
 		},
 	}
 	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
@@ -304,8 +304,8 @@ func (r *ExternalAccessReconciler) cleanupOrphanedNetworkPolicies(
 
 	for _, netpol := range ownedNetPols.Items {
 		labels := netpol.GetLabels()
-		serviceName, okName := labels[ExternalAccessServiceOwnerNameLabel]
-		serviceNamespace, okNamespace := labels[ExternalAccessServiceOwnerNamespaceLabel]
+		serviceName, okName := labels[ClusterExternalAccessServiceOwnerNameLabel]
+		serviceNamespace, okNamespace := labels[ClusterExternalAccessServiceOwnerNamespaceLabel]
 
 		if !okName || !okNamespace {
 			logger.Logger.Warn("Found owned NetworkPolicy with missing service owner labels, skipping cleanup check", "netpol", netpol.Name)
@@ -371,7 +371,7 @@ func (r *ExternalAccessReconciler) cleanupOrphanedNetworkPolicies(
 	return nil
 }
 
-func (r *ExternalAccessReconciler) getServiceDetails(
+func (r *ClusterExternalAccessReconciler) getServiceDetails(
 	ctx context.Context,
 	serviceName string,
 	namespace string,
@@ -402,9 +402,9 @@ func (r *ExternalAccessReconciler) getServiceDetails(
 	return service.Spec.Selector, service.Spec.Ports, nil
 }
 
-func (r *ExternalAccessReconciler) reconcileNetpolStatus(
+func (r *ClusterExternalAccessReconciler) reconcileNetpolStatus(
 	ctx context.Context,
-	access *vtkiov1alpha1.ExternalAccess,
+	access *vtkiov1alpha1.ClusterExternalAccess,
 	deployedNetpols []vtkiov1alpha1.Netpol,
 ) ([]vtkiov1alpha1.Netpol, error) {
 	var existingNetpols []vtkiov1alpha1.Netpol
@@ -463,9 +463,9 @@ func (r *ExternalAccessReconciler) reconcileNetpolStatus(
 	return finalNetpols, nil
 }
 
-func (r *ExternalAccessReconciler) reconcileServiceStatus(
+func (r *ClusterExternalAccessReconciler) reconcileServiceStatus(
 	ctx context.Context,
-	access *vtkiov1alpha1.ExternalAccess,
+	access *vtkiov1alpha1.ClusterExternalAccess,
 	matchedServices []vtkiov1alpha1.SvcRef,
 ) ([]vtkiov1alpha1.SvcRef, error) {
 	var existingServices []vtkiov1alpha1.SvcRef

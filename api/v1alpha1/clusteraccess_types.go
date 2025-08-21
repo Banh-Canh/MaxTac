@@ -23,11 +23,10 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// AccessSpec defines the desired state of Access.
-type AccessSpec struct {
+// ClusterAccessSpec defines the desired state of ClusterAccess.
+type ClusterAccessSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
 	// +kubebuilder:validation:Required
 	ServiceSelector *metav1.LabelSelector `json:"serviceSelector"`
 
@@ -36,10 +35,18 @@ type AccessSpec struct {
 
 	// +kubebuilder:validation:Optional
 	Direction string `json:"direction"`
+
+	// +kubebuilder:validation:Optional
+	Mirrored bool `json:"mirrored,omitempty"`
 }
 
-// AccessStatus defines the observed state of Access.
-type AccessStatus struct {
+type AccessPoint struct {
+	ServiceName string `json:"serviceName"`
+	Namespace   string `json:"namespace"`
+}
+
+// ClusterAccessStatus defines the observed state of ClusterAccess.
+type ClusterAccessStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
@@ -50,27 +57,38 @@ type AccessStatus struct {
 	Conditions []metav1.Condition `json:"conditions"`
 }
 
+type Netpol struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+type SvcRef struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 
-// Access is the Schema for the accesses API.
-type Access struct {
+// ClusterAccess is the Schema for the clusteraccesses API.
+type ClusterAccess struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AccessSpec   `json:"spec,omitempty"`
-	Status AccessStatus `json:"status,omitempty"`
+	Spec   ClusterAccessSpec   `json:"spec,omitempty"`
+	Status ClusterAccessStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// AccessList contains a list of Access.
-type AccessList struct {
+// ClusterAccessList contains a list of ClusterAccess.
+type ClusterAccessList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Access `json:"items"`
+	Items           []ClusterAccess `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Access{}, &AccessList{})
+	SchemeBuilder.Register(&ClusterAccess{}, &ClusterAccessList{})
 }

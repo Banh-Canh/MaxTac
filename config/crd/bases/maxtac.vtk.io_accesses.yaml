@@ -12,7 +12,7 @@ spec:
     listKind: AccessList
     plural: accesses
     singular: access
-  scope: Cluster
+  scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
@@ -41,12 +41,11 @@ spec:
             properties:
               direction:
                 type: string
-              mirrored:
-                type: boolean
               serviceSelector:
                 description: |-
-                  INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-                  Important: Run "make" to regenerate code after modifying this file
+                  A label selector is a label query over a set of resources. The result of matchLabels and
+                  matchExpressions are ANDed. An empty label selector matches all objects. A null
+                  label selector matches no objects.
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.

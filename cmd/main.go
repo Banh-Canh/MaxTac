@@ -220,6 +220,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (&controller.ClusterAccessReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterAccess")
+		os.Exit(1)
+	}
+	if err = (&controller.ClusterExternalAccessReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterExternalAccess")
+		os.Exit(1)
+	}
 	if err = (&controller.AccessReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),

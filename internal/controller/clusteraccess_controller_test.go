@@ -22,15 +22,14 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	maxtacv1alpha1 "github.com/Banh-Canh/maxtac/api/v1alpha1"
+	vtkiov1alpha1 "github.com/Banh-Canh/maxtac/api/v1alpha1"
 )
 
-var _ = Describe("ExternalAccess Controller", func() {
+var _ = Describe("ClusterAccess Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -40,13 +39,13 @@ var _ = Describe("ExternalAccess Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		externalaccess := &maxtacv1alpha1.ExternalAccess{}
+		access := &vtkiov1alpha1.ClusterAccess{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind ExternalAccess")
-			err := k8sClient.Get(ctx, typeNamespacedName, externalaccess)
+			By("creating the custom resource for the Kind ClusterAccess")
+			err := k8sClient.Get(ctx, typeNamespacedName, access)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &maxtacv1alpha1.ExternalAccess{
+				resource := &vtkiov1alpha1.ClusterAccess{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,16 +58,16 @@ var _ = Describe("ExternalAccess Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &maxtacv1alpha1.ExternalAccess{}
+			resource := &vtkiov1alpha1.ClusterAccess{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance ExternalAccess")
+			By("Cleanup the specific resource instance ClusterAccess")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &ExternalAccessReconciler{
+			controllerReconciler := &ClusterAccessReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}

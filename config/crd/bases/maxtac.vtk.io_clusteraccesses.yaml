@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.2
-  name: externalaccesses.maxtac.vtk.io
+  name: clusteraccesses.maxtac.vtk.io
 spec:
   group: maxtac.vtk.io
   names:
-    kind: ExternalAccess
-    listKind: ExternalAccessList
-    plural: externalaccesses
-    singular: externalaccess
-  scope: Namespaced
+    kind: ClusterAccess
+    listKind: ClusterAccessList
+    plural: clusteraccesses
+    singular: clusteraccess
+  scope: Cluster
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ExternalAccess is the Schema for the externalaccesses API.
+        description: ClusterAccess is the Schema for the clusteraccesses API.
         properties:
           apiVersion:
             description: |-
@@ -37,15 +37,16 @@ spec:
           metadata:
             type: object
           spec:
-            description: ExternalAccessSpec defines the desired state of ExternalAccess.
+            description: ClusterAccessSpec defines the desired state of ClusterAccess.
             properties:
               direction:
                 type: string
+              mirrored:
+                type: boolean
               serviceSelector:
                 description: |-
-                  A label selector is a label query over a set of resources. The result of matchLabels and
-                  matchExpressions are ANDed. An empty label selector matches all objects. A null
-                  label selector matches no objects.
+                  INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
@@ -90,15 +91,23 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-map-type: atomic
-              targetCIDRs:
+              targets:
                 items:
-                  type: string
+                  properties:
+                    namespace:
+                      type: string
+                    serviceName:
+                      type: string
+                  required:
+                  - namespace
+                  - serviceName
+                  type: object
                 type: array
             required:
             - serviceSelector
             type: object
           status:
-            description: ExternalAccessStatus defines the observed state of ExternalAccess.
+            description: ClusterAccessStatus defines the observed state of ClusterAccess.
             properties:
               conditions:
                 items:
@@ -157,9 +166,6 @@ spec:
                   type: object
                 type: array
               netpols:
-                description: |-
-                  INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-                  Important: Run "make" to regenerate code after modifying this file
                 items:
                   properties:
                     name:

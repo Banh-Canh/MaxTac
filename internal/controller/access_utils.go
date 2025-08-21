@@ -261,7 +261,10 @@ func (r *AccessReconciler) reconcileResource(
 
 // cleanupOrphanedNetworkPolicies finds all NetworkPolicies managed by this Access
 // and deletes any for which the corresponding Service no longer exists.
-func (r *AccessReconciler) cleanupOrphanedAccessNetworkPolicies(ctx context.Context, access *vtkiov1alpha1.Access) error {
+func (r *AccessReconciler) cleanupOrphanedAccessNetworkPolicies(
+	ctx context.Context,
+	access *vtkiov1alpha1.Access,
+) error {
 	logger.Logger.Info("Starting cleanup of orphaned NetworkPolicies", "access", access.Name)
 
 	labelSelector := &metav1.LabelSelector{

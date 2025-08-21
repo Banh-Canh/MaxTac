@@ -1,5 +1,5 @@
 apiVersion: maxtac.vtk.io/v1alpha1
-kind: Access
+kind: ClusterAccess
 metadata:
   labels:
     app.kubernetes.io/name: maxtac

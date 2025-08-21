@@ -10,6 +10,22 @@ repo: github.com/Banh-Canh/maxtac
 resources:
 - api:
     crdVersion: v1
+  controller: true
+  domain: vtk.io
+  group: maxtac
+  kind: ClusterAccess
+  path: github.com/Banh-Canh/maxtac/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+  controller: true
+  domain: vtk.io
+  group: maxtac
+  kind: ClusterExternalAccess
+  path: github.com/Banh-Canh/maxtac/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
     namespaced: true
   controller: true
   domain: vtk.io

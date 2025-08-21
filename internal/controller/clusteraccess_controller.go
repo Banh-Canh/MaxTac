@@ -39,39 +39,41 @@ import (
 )
 
 const (
-	AccessTargetsAnnotation          = "maxtac.vtk.io.access/targets"
-	AccessDirectionAnnotation        = "maxtac.vtk.io.access/direction"
-	AccessOwnerLabel                 = "maxtac.vtk.io.access/owner"
-	AccessServiceOwnerNameLabel      = "maxtac.vtk.io.access/serviceOwnerName"
-	AccessServiceOwnerNamespaceLabel = "maxtac.vtk.io.access/serviceOwnerNamespace"
+	apiGroup                                = "vtkiov1alpha1"
+	accessFinalizer                         = apiGroup + "/finalizer"
+	ClusterAccessTargetsAnnotation          = "maxtac.vtk.io.clusteraccess/targets"
+	ClusterAccessDirectionAnnotation        = "maxtac.vtk.io.clusteraccess/direction"
+	ClusterAccessOwnerLabel                 = "maxtac.vtk.io.clusteraccess/owner"
+	ClusterAccessServiceOwnerNameLabel      = "maxtac.vtk.io.clusteraccess/serviceOwnerName"
+	ClusterAccessServiceOwnerNamespaceLabel = "maxtac.vtk.io.clusteraccess/serviceOwnerNamespace"
 )
 
-// AccessReconciler reconciles a Access object
-type AccessReconciler struct {
+// ClusterAccessReconciler reconciles a ClusterAccess object
+type ClusterAccessReconciler struct {
 	client.Client
 	Scheme           *runtime.Scheme
 	StatusNeedUpdate bool
 }
 
-// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=accesses,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=accesses/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=accesses/finalizers,verbs=update
+// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=clusteraccesses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=clusteraccesses/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=clusteraccesses/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger.Logger.Debug("Starting reconciliation for Access object", "name", req.NamespacedName)
-	access := &vtkiov1alpha1.Access{}
+func (r *ClusterAccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger.Logger.Debug("Starting reconciliation for ClusterAccess object", "name", req.NamespacedName)
+	access := &vtkiov1alpha1.ClusterAccess{}
 	var deployedNetpols []vtkiov1alpha1.Netpol
 
 	if err := r.Get(ctx, req.NamespacedName, access); err != nil {
 		if k8serrors.IsNotFound(err) {
-			logger.Logger.Debug("Access resource not found. Ignoring since object must be deleted.")
+			logger.Logger.Debug("ClusterAccess resource not found. Ignoring since object must be deleted.")
 			return ctrl.Result{}, nil
 		}
-		logger.Logger.Error("Failed to get Access resource.", slog.Any("error", err))
+		logger.Logger.Error("Failed to get ClusterAccess resource.", slog.Any("error", err))
 		return ctrl.Result{}, err
 	}
 
@@ -80,9 +82,9 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		logger.Logger.Error("Error adding finalizer.", slog.Any("error", err))
 	}
 
-	// At each reconciliation, check for any NetworkPolicies owned by this Access
+	// At each reconciliation, check for any NetworkPolicies owned by this ClusterAccess
 	// whose corresponding Service has been deleted.
-	if err := r.cleanupOrphanedAccessNetworkPolicies(ctx, access); err != nil {
+	if err := r.cleanupOrphanedClusterAccessNetworkPolicies(ctx, access); err != nil {
 		logger.Logger.Error("Error during cleanup of orphaned NetworkPolicies.", slog.Any("error", err))
 		return ctrl.Result{}, err // Requeue on cleanup failure
 	}
@@ -94,9 +96,9 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, fmt.Errorf("failed to convert label selector: %w", err)
 	}
 
-	// List all services in the access that match the label selector.
+	// List all services in all namespaces that match the label selector.
 	serviceList := &corev1.ServiceList{}
-	if err := r.List(ctx, serviceList, &client.ListOptions{LabelSelector: selector, Namespace: access.Namespace}); err != nil {
+	if err := r.List(ctx, serviceList, &client.ListOptions{LabelSelector: selector}); err != nil {
 		logger.Logger.Error("Failed to list services with selector.", slog.Any("error", err), "selector", selector.String())
 		return ctrl.Result{}, err
 	}
@@ -113,8 +115,8 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		var direction string
 
 		annotations := service.GetAnnotations()
-		annotationTargets, hasTargetsAnnotation := annotations[AccessTargetsAnnotation]
-		annotationDirection, hasDirectionAnnotation := annotations[AccessDirectionAnnotation]
+		annotationTargets, hasTargetsAnnotation := annotations[ClusterAccessTargetsAnnotation]
+		annotationDirection, hasDirectionAnnotation := annotations[ClusterAccessDirectionAnnotation]
 
 		// Prefer annotations if they are both present
 		if hasTargetsAnnotation {
@@ -136,7 +138,7 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 			targetsStr = strings.Join(specTargets, ";")
 			logger.Logger.Info(
-				"Annotations targets not found on service, falling back to Access spec",
+				"Annotations targets not found on service, falling back to ClusterAccess spec",
 				"service",
 				service.Name,
 				"namespace",
@@ -156,7 +158,7 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			direction = access.Spec.Direction
 
 			logger.Logger.Info(
-				"Annotations direction not found on service, falling back to Access spec",
+				"Annotations direction not found on service, falling back to ClusterAccess spec",
 				"service",
 				service.Name,
 				"namespace",
@@ -186,8 +188,8 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				"Invalid direction value in service annotation, skipping service",
 				"service", service.Name,
 				"namespace", service.Namespace,
-				"annotation", AccessDirectionAnnotation,
-				"invalid_value", annotations[AccessDirectionAnnotation],
+				"annotation", ClusterAccessDirectionAnnotation,
+				"invalid_value", annotations[ClusterAccessDirectionAnnotation],
 				"expected_values", "ingress, egress, or all",
 			)
 			continue // Skip processing for this service.
@@ -236,9 +238,9 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 			// Define common labels for both network policies
 			netpolLabels := map[string]string{
-				AccessOwnerLabel:                 access.Name,
-				AccessServiceOwnerNameLabel:      service.Name,
-				AccessServiceOwnerNamespaceLabel: service.Namespace,
+				ClusterAccessOwnerLabel:                 access.Name,
+				ClusterAccessServiceOwnerNameLabel:      service.Name,
+				ClusterAccessServiceOwnerNamespaceLabel: service.Namespace,
 			}
 			var directionSuffix string
 			switch direction {
@@ -252,7 +254,7 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 			// This policy controls traffic leaving (egress) or entering (ingress) the source service.
 			sourceNetpolName := fmt.Sprintf(
-				"%s--%s-%s---%s-%s-%s",
+				"cluster-%s--%s-%s---%s-%s-%s",
 				access.Name,
 				service.Namespace,
 				service.Name,
@@ -281,6 +283,60 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 					Namespace: targetNs,
 				})
 
+			}
+
+			// Create the corresponding NetworkPolicy for the TARGET namespace ONLY IF Mirrored is true
+			if access.Spec.Mirrored {
+				logger.Logger.Debug(
+					"Mirrored flag is set to true, creating corresponding NetworkPolicy in target namespace",
+					"target_namespace",
+					targetNs,
+				)
+				var mirroredDirection string
+				var mirroredDirectionSuffix string
+				switch direction {
+				case "egress":
+					mirroredDirection = "ingress" // If source has egress, target needs ingress
+					mirroredDirectionSuffix = "ing"
+				case "ingress":
+					mirroredDirection = "egress" // If source has ingress, target needs egress
+					mirroredDirectionSuffix = "egr"
+				case "all":
+					mirroredDirection = "all" // If both are allowed at source, allow both at target
+					mirroredDirectionSuffix = "all"
+				}
+
+				targetNetpolName := fmt.Sprintf(
+					"cluster-%s--%s-%s---%s-%s-%s-mirror",
+					access.Name,
+					targetNs,
+					targetName,
+					service.Namespace,
+					service.Name,
+					mirroredDirectionSuffix,
+				)
+
+				targetNetpol := networkpolicy.DefineAccessNetworkPolicy(
+					targetNetpolName,
+					targetNs,          // Policy is created in the TARGET service's namespace
+					targetSvcSelector, // Policy applies to pods of the TARGET service
+					sourceSvcSelector,
+					service.Namespace,
+					sourcePorts,
+					mirroredDirection,
+				)
+				targetNetpol.Labels = netpolLabels
+				targetNetpol.Labels["maxtac.vtk.io.access/mirror"] = "true"
+
+				if err := r.deployResource(ctx, access, targetNetpol, &networkingv1.NetworkPolicy{}, networkpolicy.ExtractNetpolSpec, false); err != nil {
+					logger.Logger.Error("Error deploying target NetworkPolicy.", slog.Any("error", err), "netpol_name", targetNetpolName)
+				} else {
+					logger.Logger.Info("Successfully deployed target NetworkPolicy", "name", targetNetpolName, "namespace", targetNs)
+					deployedNetpols = append(deployedNetpols, vtkiov1alpha1.Netpol{
+						Name:      targetNetpolName,
+						Namespace: targetNs,
+					})
+				}
 			}
 		}
 	}
@@ -312,27 +368,27 @@ func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *AccessReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ClusterAccessReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Predicate to filter for services with the specific annotations.
 
 	return ctrl.NewControllerManagedBy(mgr).
-		// Watch for changes to primary resource Access
-		For(&vtkiov1alpha1.Access{}).
-		// Watch for changes to secondary resource NetworkPolicy and requeue the owner Access
+		// Watch for changes to primary resource ClusterAccess
+		For(&vtkiov1alpha1.ClusterAccess{}).
+		// Watch for changes to secondary resource NetworkPolicy and requeue the owner ClusterAccess
 		Owns(&networkingv1.NetworkPolicy{}).
-		// Watch for changes to Services and enqueue reconcile requests for Access resources
+		// Watch for changes to Services and enqueue reconcile requests for ClusterAccess resources
 		// that are configured to watch the Service's namespace.
 		Watches(
 			&corev1.Service{},
-			handler.EnqueueRequestsFromMapFunc(r.findAccessForService),
+			handler.EnqueueRequestsFromMapFunc(r.findClusterAccessForService),
 		).
-		Named("access").
+		Named("clusteraccess").
 		Complete(r)
 }
 
-// findAccessForService is a handler.MapFunc that finds all Access resources.
-// we will trigger the reconciliation of all accesses here on service event.
-func (r *AccessReconciler) findAccessForService(ctx context.Context, obj client.Object) []reconcile.Request {
+// findClusterAccessForService is a handler.MapFunc that finds all ClusterAccess resources.
+// we will trigger the reconciliation of all clusteraccesses here on service event.
+func (r *ClusterAccessReconciler) findClusterAccessForService(ctx context.Context, obj client.Object) []reconcile.Request {
 	service, ok := obj.(*corev1.Service)
 	if !ok {
 		logger.Logger.Error("Unexpected type received in map function for Service watch", "type", fmt.Sprintf("%T", obj))
@@ -340,21 +396,21 @@ func (r *AccessReconciler) findAccessForService(ctx context.Context, obj client.
 	}
 
 	logger.Logger.Debug(
-		"Service change detected, triggering reconciliation for all Access resources",
+		"Service change detected, triggering reconciliation for all ClusterAccess resources",
 		"service", service.Name,
 		"namespace", service.GetNamespace(),
 	)
 
-	// List all Access resources cluster-wide.
-	accessList := &vtkiov1alpha1.AccessList{}
-	if err := r.List(ctx, accessList); err != nil {
-		logger.Logger.Error("Failed to list Access resources in map function", slog.Any("error", err))
+	// List all ClusterAccess resources cluster-wide.
+	clusterAccessList := &vtkiov1alpha1.ClusterAccessList{}
+	if err := r.List(ctx, clusterAccessList); err != nil {
+		logger.Logger.Error("Failed to list ClusterAccess resources in map function", slog.Any("error", err))
 		return []reconcile.Request{}
 	}
 
-	// Create a reconciliation request for each Access resource.
-	requests := make([]reconcile.Request, len(accessList.Items))
-	for i, ea := range accessList.Items {
+	// Create a reconciliation request for each ClusterAccess resource.
+	requests := make([]reconcile.Request, len(clusterAccessList.Items))
+	for i, ea := range clusterAccessList.Items {
 		requests[i] = reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Name:      ea.Name,

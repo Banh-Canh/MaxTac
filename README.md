@@ -6,26 +6,30 @@
 
 - [ℹ️ Description](#️-description)
 - [✨ Core Concepts](#-core-concepts)
-  - [1. `Access`: For Intra-Cluster Communication](#1-access-for-intra-cluster-communication)
-  - [2. `ExternalAccess`: For External Communication](#2-externalaccess-for-external-communication)
+  - [1. `ClusterAccess`: For Intra-Cluster Communication](#1-access-for-intra-cluster-communication)
+  - [2. `ClusterExternalAccess`: For External Communication](#2-externalaccess-for-external-communication)
 - [⚙️ How It Works](#️-how-it-works)
 - [📦 Installation](#-installation)
 - [📜 Custom Resource Reference](#-custom-resource-reference)
+  - [`ClusterExternalAccess`](#externalaccess)
   - [`ExternalAccess`](#externalaccess)
+  - [`ClusterAccess`](#access)
   - [`Access`](#access)
 - [🏷️ Service Annotation Reference](#️-service-annotation-reference)
-  - [For `ExternalAccess`](#for-externalaccess)
+  - [For `ClusterExternalAccess`](#for-externalaccess)
+  - [For `ClusterExternalAccess`](#for-externalaccess)
+  - [For `ClusterAccess`](#for-access)
   - [For `Access`](#for-access)
 - [ℹ️ Status reference](#️-status-reference)
 - [🚀 Usage Example Walkthrough](#-usage-example-walkthrough)
 
 ## ℹ️ Description
 
-MaxTac is a Kubernetes controller that simplifies and automates the management of `NetworkPolicy` resources. It works by introducing two Custom Resource Definitions (CRDs), `Access` and `ExternalAccess`, which allow you to define network connectivity rules at a higher level of abstraction.
+MaxTac is a Kubernetes controller that simplifies and automates the management of `NetworkPolicy` resources. It works by introducing two Custom Resource Definitions (CRDs), `ClusterAccess` and `ClusterExternalAccess`, which allow you to define network connectivity rules at a higher level of abstraction.
 
 The controller monitors these CRs and specially annotated `Service` resources to dynamically create, update, and delete the underlying Kubernetes `NetworkPolicy` objects, ensuring the cluster's network state always matches your desired intent.
 
-With MaxTac, it is possible to open an ingress/egress from/to an ip or a group of pods, with one resource Access or External Access, and delete it or recreate it all at once in a few seconds.
+With MaxTac, it is possible to open an ingress/egress from/to an ip or a group of pods, with one resource ClusterAccess or ClusterExternalAccess, and delete it or recreate it all at once in a few seconds.
 
 It is especially useful, if you desire to manage dynamically multiple netpols at once or if you want to set network rules if a more straightforward way as it basically allows you to tell which group of pods can go talk to which other group of pods by polling labeled services then pulling out their podSelectors to create the corresponding netpols.
 
@@ -35,13 +39,13 @@ It is especially useful, if you desire to manage dynamically multiple netpols at
 
 MaxTac operates on two primary resources to manage two distinct use cases:
 
-### 1. `Access`: For Intra-Cluster Communication
+### 1. `ClusterAccess`: For Intra-Cluster Communication
 
-The **`Access`** resource manages network policies for communication _between services_ within the cluster. You define a "source" service and a "target" service, and MaxTac creates the necessary `NetworkPolicy` to allow traffic between them.
+The **`ClusterAccess`** resource manages network policies for communication _between services_ within the cluster. You define a "source" service and a "target" service, and MaxTac creates the necessary `NetworkPolicy` to allow traffic between them.
 
-### 2. `ExternalAccess`: For External Communication
+### 2. `ClusterExternalAccess`: For External Communication
 
-The **`ExternalAccess`** resource manages network policies for communication between a service inside the cluster and an _external IP address range (CIDR)_. This is ideal for controlling egress traffic to a public API, an external database, or any other resource outside the Kubernetes cluster.
+The **`ClusterExternalAccess`** resource manages network policies for communication between a service inside the cluster and an _external IP address range (CIDR)_. This is ideal for controlling egress traffic to a public API, an external database, or any other resource outside the Kubernetes cluster.
 
 ---
 
@@ -49,7 +53,7 @@ The **`ExternalAccess`** resource manages network policies for communication bet
 
 The controller uses a declarative, label-driven approach. Instead of creating complex `NetworkPolicy` YAML files by hand, you simply:
 
-1. **Create an `Access` or `ExternalAccess` resource.** This resource uses a `serviceSelector` to identify which services it should pay attention to.
+1. **Create an `ClusterAccess` or `ClusterExternalAccess` resource.** This resource uses a `serviceSelector` to identify which services it should pay attention to.
 2. **Label and Annotate your Services.** You apply a matching label to your "source" `Service`(s). Then, you add specific annotations to declare the desired target and the direction of traffic.
 3. **Let the Controller Do the Work.** MaxTac detects the CR, finds the matching services, reads their annotations, and generates the appropriate `NetworkPolicy` in the correct namespace.
 
@@ -80,13 +84,13 @@ NAME                                         READY   STATUS    RESTARTS   AGE
 maxtac-controller-manager-5f5544b549-w8vhn   1/1     Running   0          112s
 ```
 
-You can now apply any Access or ExternalAccess object.
+You can now apply any ClusterAccess or ClusterExternalAccess object.
 
 ---
 
 # 📜 Custom Resource Reference
 
-### `ExternalAccess`
+### `ClusterExternalAccess`
 
 This resource grants services access to an external CIDR.
 
@@ -100,7 +104,7 @@ This resource grants services access to an external CIDR.
 
 ```yaml
 apiVersion: maxtac.vtk.io/v1alpha1
-kind: ExternalAccess
+kind: ClusterExternalAccess
 metadata:
   name: externalaccess-sample
 spec:
@@ -113,7 +117,11 @@ spec:
       externalaccess: 'yes'
 ```
 
-### `Access`
+### `ExternalAccess`
+
+Basically the same as the ClusterExternalAccess, but namespaced. The selector while only match services in the same namespace.
+
+### `ClusterAccess`
 
 **Spec Fields:**
 
@@ -127,7 +135,7 @@ spec:
 
 ```yaml
 apiVersion: maxtac.vtk.io/v1alpha1
-kind: Access
+kind: ClusterAccess
 metadata:
   name: access-sample
 spec:
@@ -144,6 +152,12 @@ spec:
   mirrored: true
 ```
 
+### `Access`
+
+Basically the same but namespaced. Also `.spec.mirrored` is not available in the namespaced version.
+
+#### `Service`
+
 Not a custom resource, but an example that showcase a service making use of both resource to create network policies:
 
 ```yaml
@@ -151,10 +165,10 @@ apiVersion: v1
 kind: Service
 metadata:
   annotations:
-    maxtac.vtk.io.access/direction: ingress
-    maxtac.vtk.io.access/targets: prowlarr,prowlarr;radarr,radarr;jellyfin,jellyfin
-    maxtac.vtk.io.externalaccess/direction: ingress
-    maxtac.vtk.io.externalaccess/targets: 1.1.1.1-32,2001:4860:4860::8888-128
+    maxtac.vtk.io.clusteraccess/direction: ingress
+    maxtac.vtk.io.clusteraccess/targets: prowlarr,prowlarr;radarr,radarr;jellyfin,jellyfin
+    maxtac.vtk.io.clusterexternalaccess/direction: ingress
+    maxtac.vtk.io.clusterexternalaccess/targets: 1.1.1.1-32,2001:4860:4860::8888-128
   labels:
     access: yes
     externalaccess: yes
@@ -175,7 +189,7 @@ spec:
   type: ClusterIP
 ```
 
-It is possible for a service to be watched and used to generate network policies with different rules from different Access or ExternalAccess.
+It is possible for a service to be watched and used to generate network policies with different rules from different Access or ClusterExternalAccess.
 
 ---
 
@@ -183,23 +197,27 @@ It is possible for a service to be watched and used to generate network policies
 
 Annotations on the `Service` objects are crucial for telling the controller what to do. It overrides the spec of both resources.
 
-### For `ExternalAccess`
+### For `ClusterExternalAccess`
 
-When a `Service` is matched by an `ExternalAccess` resource's `serviceSelector`, it must have the following annotation:
+When a `Service` is matched by an `ClusterExternalAccess` resource's `serviceSelector`, it must have the following annotation:
 
-- `maxtac.vtk.io.externalaccess/direction`: Defines the direction of allowed traffic.
+- `maxtac.vtk.io.clusterexternalaccess/direction`: Defines the direction of allowed traffic.
   - **Values**: `"ingress"`, `"egress"`, `"all"`.
-  - **Example**: `maxtac.vtk.io.externalaccess/direction: "egress"` allows the pods behind this service to make outbound calls to the `targetCidr`.
-- `maxtac.vtk.io.access/targets`: The cidr of the targets. example: `maxtac.vtk.io.access/targets: 1.1.1.1-32,2001:4860:4860::8888-128`
+  - **Example**: `maxtac.vtk.io.clusterexternalaccess/direction: "egress"` allows the pods behind this service to make outbound calls to the `targetCidr`.
+- `maxtac.vtk.io.clusteraccess/targets`: The cidr of the targets. example: `maxtac.vtk.io.clusteraccess/targets: 1.1.1.1-32,2001:4860:4860::8888-128`
 
-### For `Access`
+### For `ClusterAccess`
 
-When a `Service` is matched by an `Access` resource's `serviceSelector`, it must have the following three annotations to define the connection:
+When a `Service` is matched by an `ClusterAccess` resource's `serviceSelector`, it must have the following three annotations to define the connection:
 
-- `maxtac.vtk.io.access/targets`: The name of the targets `Service`. example: `maxtac.vtk.io.access/targets: <ns1>,<svc1;<ns2>,<svc2>`
-- `maxtac.vtk.io.access/direction`: Defines the direction of allowed traffic relative to the annotated service.
+- `maxtac.vtk.io.clusteraccess/targets`: The name of the targets `Service`. example: `maxtac.vtk.io.clusteraccess/targets: <ns1>,<svc1;<ns2>,<svc2>`
+- `maxtac.vtk.io.clusteraccess/direction`: Defines the direction of allowed traffic relative to the annotated service.
   - **Values**: `"ingress"`, `"egress"`, `"all"`.
-  - **Example**: `maxtac.vtk.io.access/direction: "egress"` allows the pods behind the annotated service to connect to the target service.
+  - **Example**: `maxtac.vtk.io.clusteraccess/direction: "egress"` allows the pods behind the annotated service to connect to the target service.
+
+### For the namespaced variant
+
+Remove the `cluster` from the annotation. So `maxtac.vtk.io.clusteraccess/targets` becomes `maxtac.vtk.io.access/targets`.
 
 ---
 
@@ -248,7 +266,7 @@ status:
 
 Let's illustrate how to allow a `backend-api` service to connect to an external database at `1.1.1.1`.
 
-**1. Create the `ExternalAccess` Resource**
+**1. Create the `ClusterExternalAccess` Resource**
 
 First, we apply the `Access` manifest. This tells the controller to watch for services labeled with `database: "things"` and grant them access to and from `zitadel pods and ombi pods`.
 
@@ -276,7 +294,7 @@ spec:
   mirrored: true
 ---
 apiVersion: maxtac.vtk.io/v1alpha1
-kind: ExternalAccess
+kind: ClusterExternalAccess
 metadata:
   labels:
     app.kubernetes.io/name: maxtac

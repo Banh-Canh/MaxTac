@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	vtkiov1alpha1 "github.com/Banh-Canh/maxtac/api/v1alpha1"
+	maxtacv1alpha1 "github.com/Banh-Canh/maxtac/api/v1alpha1"
 )
 
 var _ = Describe("Access Controller", func() {
@@ -40,13 +40,13 @@ var _ = Describe("Access Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		access := &vtkiov1alpha1.Access{}
+		access := &maxtacv1alpha1.Access{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Access")
 			err := k8sClient.Get(ctx, typeNamespacedName, access)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &vtkiov1alpha1.Access{
+				resource := &maxtacv1alpha1.Access{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,7 +59,7 @@ var _ = Describe("Access Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &vtkiov1alpha1.Access{}
+			resource := &maxtacv1alpha1.Access{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 

@@ -23,23 +23,22 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// AccessSpec defines the desired state of Access.
-type AccessSpec struct {
+// ClusterExternalAccessSpec defines the desired state of ClusterExternalAccess.
+type ClusterExternalAccessSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:items:validation:Pattern=`^((([0-9]{1,3}\.){3}[0-9]{1,3})(/(3[0-2]|[12]?[0-9]))?|([0-9A-Fa-f:]*:[0-9A-Fa-f:]*)(/(12[0-8]|1[01][0-9]|[1-9]?[0-9]))?)$`
+	TargetCIDRs []string `json:"targetCIDRs,omitempty"`
 	// +kubebuilder:validation:Required
 	ServiceSelector *metav1.LabelSelector `json:"serviceSelector"`
-
-	// +kubebuilder:validation:Optional
-	Targets []AccessPoint `json:"targets"`
-
 	// +kubebuilder:validation:Optional
 	Direction string `json:"direction"`
 }
 
-// AccessStatus defines the observed state of Access.
-type AccessStatus struct {
+// ClusterExternalAccessStatus defines the observed state of ClusterExternalAccess.
+type ClusterExternalAccessStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
@@ -52,25 +51,26 @@ type AccessStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 
-// Access is the Schema for the accesses API.
-type Access struct {
+// ClusterExternalAccess is the Schema for the clusterexternalaccesses API.
+type ClusterExternalAccess struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AccessSpec   `json:"spec,omitempty"`
-	Status AccessStatus `json:"status,omitempty"`
+	Spec   ClusterExternalAccessSpec   `json:"spec,omitempty"`
+	Status ClusterExternalAccessStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// AccessList contains a list of Access.
-type AccessList struct {
+// ClusterExternalAccessList contains a list of ClusterExternalAccess.
+type ClusterExternalAccessList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Access `json:"items"`
+	Items           []ClusterExternalAccess `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Access{}, &AccessList{})
+	SchemeBuilder.Register(&ClusterExternalAccess{}, &ClusterExternalAccessList{})
 }

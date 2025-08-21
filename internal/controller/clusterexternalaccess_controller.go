@@ -39,70 +39,70 @@ import (
 	"github.com/Banh-Canh/maxtac/internal/utils/network"
 )
 
-// ExternalAccessReconciler reconciles a ExternalAccess object
-type ExternalAccessReconciler struct {
+// ClusterExternalAccessReconciler reconciles a ClusterExternalAccess object
+type ClusterExternalAccessReconciler struct {
 	client.Client
 	Scheme           *runtime.Scheme
 	StatusNeedUpdate bool
 }
 
 const (
-	ExternalAccessDirectionAnnotation        = "maxtac.vtk.io.externalaccess/direction"
-	ExternalAccessOwnerLabel                 = "maxtac.vtk.io.externalaccess/owner"
-	ExternalAccessServiceOwnerNameLabel      = "maxtac.vtk.io.externalaccess/serviceOwnerName"
-	ExternalAccessServiceOwnerNamespaceLabel = "maxtac.vtk.io.externalaccess/serviceOwnerNamespace"
-	ExternalAccessTargetsAnnotation          = "maxtac.vtk.io.externalaccess/targets"
+	ClusterExternalAccessDirectionAnnotation        = "maxtac.vtk.io.clusterexternalaccess/direction"
+	ClusterExternalAccessOwnerLabel                 = "maxtac.vtk.io.clusterexternalaccess/owner"
+	ClusterExternalAccessServiceOwnerNameLabel      = "maxtac.vtk.io.clusterexternalaccess/serviceOwnerName"
+	ClusterExternalAccessServiceOwnerNamespaceLabel = "maxtac.vtk.io.clusterexternalaccess/serviceOwnerNamespace"
+	ClusterExternalAccessTargetsAnnotation          = "maxtac.vtk.io.clusterexternalaccess/targets"
 )
 
-// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=externalaccesses,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=externalaccesses/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=externalaccesses/finalizers,verbs=update
+// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=clusterexternalaccesses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=clusterexternalaccesses/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=maxtac.vtk.io,resources=clusterexternalaccesses/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger.Logger.Debug("Starting reconciliation for ExternalAccess object", "name", req.NamespacedName)
-	externalaccess := &vtkiov1alpha1.ExternalAccess{}
+func (r *ClusterExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger.Logger.Debug("Starting reconciliation for ClusterExternalAccess object", "name", req.NamespacedName)
+	clusterexternalaccess := &vtkiov1alpha1.ClusterExternalAccess{}
 	var deployedNetpols []vtkiov1alpha1.Netpol
 
-	if err := r.Get(ctx, req.NamespacedName, externalaccess); err != nil {
+	if err := r.Get(ctx, req.NamespacedName, clusterexternalaccess); err != nil {
 		if k8serrors.IsNotFound(err) {
-			logger.Logger.Debug("ExternalAccess resource not found. Ignoring since object must be deleted.")
+			logger.Logger.Debug("ClusterExternalAccess resource not found. Ignoring since object must be deleted.")
 			return ctrl.Result{}, nil
 		}
-		logger.Logger.Error("Failed to get ExternalAccess resource.", slog.Any("error", err))
+		logger.Logger.Error("Failed to get ClusterExternalAccess resource.", slog.Any("error", err))
 		return ctrl.Result{}, err
 	}
 
 	// Finalizers
-	if err := r.addFinalizer(ctx, externalaccess); err != nil {
+	if err := r.addFinalizer(ctx, clusterexternalaccess); err != nil {
 		logger.Logger.Error("Error adding finalizer.", slog.Any("error", err))
 	}
 
-	// At each reconciliation, check for any NetworkPolicies owned by this ExternalAccess
+	// At each reconciliation, check for any NetworkPolicies owned by this ClusterExternalAccess
 	// whose corresponding Service has been deleted.
-	if err := r.cleanupOrphanedNetworkPolicies(ctx, externalaccess); err != nil {
+	if err := r.cleanupOrphanedNetworkPolicies(ctx, clusterexternalaccess); err != nil {
 		logger.Logger.Error("Error during cleanup of orphaned NetworkPolicies.", slog.Any("error", err))
 		return ctrl.Result{}, err // Requeue on cleanup failure
 	}
 
 	// Convert the LabelSelector from the spec into a selector object that the client can use.
-	selector, err := metav1.LabelSelectorAsSelector(externalaccess.Spec.ServiceSelector)
+	selector, err := metav1.LabelSelectorAsSelector(clusterexternalaccess.Spec.ServiceSelector)
 	if err != nil {
 		logger.Logger.Error(
 			"Error converting label selector.",
 			slog.Any("error", err),
 			"selector",
-			externalaccess.Spec.ServiceSelector,
+			clusterexternalaccess.Spec.ServiceSelector,
 		)
 		return ctrl.Result{}, fmt.Errorf("failed to convert label selector: %w", err)
 	}
 
 	// List all services in all namespaces that match the label selector.
 	serviceList := &corev1.ServiceList{}
-	if err := r.List(ctx, serviceList, &client.ListOptions{LabelSelector: selector, Namespace: externalaccess.Namespace}); err != nil {
+	if err := r.List(ctx, serviceList, &client.ListOptions{LabelSelector: selector}); err != nil {
 		logger.Logger.Error("Failed to list services with selector.", slog.Any("error", err), "selector", selector.String())
 		return ctrl.Result{}, err
 	}
@@ -118,8 +118,8 @@ func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		var direction string
 
 		annotations := service.GetAnnotations()
-		annotationTargets, hasTargetsAnnotation := annotations[ExternalAccessTargetsAnnotation]
-		annotationDirection, hasDirectionAnnotation := annotations[ExternalAccessDirectionAnnotation]
+		annotationTargets, hasTargetsAnnotation := annotations[ClusterExternalAccessTargetsAnnotation]
+		annotationDirection, hasDirectionAnnotation := annotations[ClusterExternalAccessDirectionAnnotation]
 
 		// Prefer annotations if they are both present
 		if hasTargetsAnnotation {
@@ -132,9 +132,9 @@ func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			)
 			targetsStr = annotationTargets
 		} else {
-			targetsStr = strings.Join(externalaccess.Spec.TargetCIDRs, ",")
+			targetsStr = strings.Join(clusterexternalaccess.Spec.TargetCIDRs, ",")
 			logger.Logger.Info(
-				"Annotations targets not found on service, falling back to ExternalAccess spec",
+				"Annotations targets not found on service, falling back to ClusterExternalAccess spec",
 				"service",
 				service.Name,
 				"namespace",
@@ -153,13 +153,13 @@ func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			direction = annotationDirection
 		} else {
 			logger.Logger.Info(
-				"Annotations direction not found on service, falling back to ExternalAccess spec",
+				"Annotations direction not found on service, falling back to ClusterExternalAccess spec",
 				"service",
 				service.Name,
 				"namespace",
 				service.Namespace,
 			)
-			direction = externalaccess.Spec.Direction
+			direction = clusterexternalaccess.Spec.Direction
 
 		}
 
@@ -256,7 +256,7 @@ func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 			netpolName := fmt.Sprintf(
 				"cluster-%s--%s-%s---%s-%s",
-				externalaccess.Name,
+				clusterexternalaccess.Name,
 				service.Namespace,
 				service.Name,
 				targetCidrName,
@@ -275,14 +275,14 @@ func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 			// Create the labels for the NetworkPolicy so we can track and clean it up.
 			netpolLabels := map[string]string{
-				ExternalAccessOwnerLabel:                 externalaccess.Name,
-				ExternalAccessServiceOwnerNameLabel:      service.Name,
-				ExternalAccessServiceOwnerNamespaceLabel: service.Namespace,
+				ClusterExternalAccessOwnerLabel:                 clusterexternalaccess.Name,
+				ClusterExternalAccessServiceOwnerNameLabel:      service.Name,
+				ClusterExternalAccessServiceOwnerNamespaceLabel: service.Namespace,
 			}
 
 			netpol.Labels = netpolLabels
 
-			if err := r.deployResource(ctx, externalaccess, netpol, &networkingv1.NetworkPolicy{}, networkpolicy.ExtractNetpolSpec, false); err != nil {
+			if err := r.deployResource(ctx, clusterexternalaccess, netpol, &networkingv1.NetworkPolicy{}, networkpolicy.ExtractNetpolSpec, false); err != nil {
 				logger.Logger.Error("Error deploying NetworkPolicy.", slog.Any("error", err), "netpol_name", netpolName)
 				// Continue to the next CIDR even if this one fails
 			} else {
@@ -298,24 +298,24 @@ func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// Set access ready status
 	// Update netpols in status
-	finalNetpols, err := r.reconcileNetpolStatus(ctx, externalaccess, deployedNetpols)
+	finalNetpols, err := r.reconcileNetpolStatus(ctx, clusterexternalaccess, deployedNetpols)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	// Update services in status
-	finalServices, err := r.reconcileServiceStatus(ctx, externalaccess, matchedServices)
+	finalServices, err := r.reconcileServiceStatus(ctx, clusterexternalaccess, matchedServices)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	externalaccess.Status.Netpols = finalNetpols
-	externalaccess.Status.Services = finalServices
-	if err := r.updateStatus(ctx, externalaccess); err != nil {
+	clusterexternalaccess.Status.Netpols = finalNetpols
+	clusterexternalaccess.Status.Services = finalServices
+	if err := r.updateStatus(ctx, clusterexternalaccess); err != nil {
 		logger.Logger.Error("Error updating status.", slog.Any("error", err))
 	}
 
-	if err := r.removeFinalizer(ctx, externalaccess); err != nil {
+	if err := r.removeFinalizer(ctx, clusterexternalaccess); err != nil {
 		logger.Logger.Error("Error removing finalizer.", slog.Any("error", err))
 	}
 
@@ -323,22 +323,22 @@ func (r *ExternalAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ExternalAccessReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ClusterExternalAccessReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&vtkiov1alpha1.ExternalAccess{}).
+		For(&vtkiov1alpha1.ClusterExternalAccess{}).
 		Owns(&networkingv1.NetworkPolicy{}).
-		// Watch for changes to Services and enqueue reconcile requests for ExternalAccess resources.
+		// Watch for changes to Services and enqueue reconcile requests for ClusterExternalAccess resources.
 		Watches(
 			&corev1.Service{},
-			handler.EnqueueRequestsFromMapFunc(r.findExternalAccessForService),
+			handler.EnqueueRequestsFromMapFunc(r.findClusterExternalAccessForService),
 		).
-		Named("externalaccess").
+		Named("clusterexternalaccess").
 		Complete(r)
 }
 
-// findExternalAccessForService is a handler.MapFunc that finds all ExternalAccess resources.
+// findClusterExternalAccessForService is a handler.MapFunc that finds all ClusterExternalAccess resources.
 // we will trigger the reconciliation of all accesses here on service event.
-func (r *ExternalAccessReconciler) findExternalAccessForService(ctx context.Context, obj client.Object) []reconcile.Request {
+func (r *ClusterExternalAccessReconciler) findClusterExternalAccessForService(ctx context.Context, obj client.Object) []reconcile.Request {
 	service, ok := obj.(*corev1.Service)
 	if !ok {
 		logger.Logger.Error("Unexpected type received in map function for Service watch", "type", fmt.Sprintf("%T", obj))
@@ -346,21 +346,21 @@ func (r *ExternalAccessReconciler) findExternalAccessForService(ctx context.Cont
 	}
 
 	logger.Logger.Debug(
-		"Service change detected, triggering reconciliation for all ExternalAccess resources",
+		"Service change detected, triggering reconciliation for all ClusterExternalAccess resources",
 		"service", service.Name,
 		"namespace", service.GetNamespace(),
 	)
 
-	// List all ExternalAccess resources cluster-wide.
-	externalAccessList := &vtkiov1alpha1.ExternalAccessList{}
-	if err := r.List(ctx, externalAccessList); err != nil {
-		logger.Logger.Error("Failed to list ExternalAccess resources in map function", slog.Any("error", err))
+	// List all ClusterExternalAccess resources cluster-wide.
+	clusterExternalAccessList := &vtkiov1alpha1.ClusterExternalAccessList{}
+	if err := r.List(ctx, clusterExternalAccessList); err != nil {
+		logger.Logger.Error("Failed to list ClusterExternalAccess resources in map function", slog.Any("error", err))
 		return []reconcile.Request{}
 	}
 
-	// Create a reconciliation request for each ExternalAccess resource.
-	requests := make([]reconcile.Request, len(externalAccessList.Items))
-	for i, ea := range externalAccessList.Items {
+	// Create a reconciliation request for each ClusterExternalAccess resource.
+	requests := make([]reconcile.Request, len(clusterExternalAccessList.Items))
+	for i, ea := range clusterExternalAccessList.Items {
 		requests[i] = reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Name:      ea.Name,

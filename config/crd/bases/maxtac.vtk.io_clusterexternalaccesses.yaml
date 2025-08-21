@@ -4,20 +4,21 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.2
-  name: externalaccesses.maxtac.vtk.io
+  name: clusterexternalaccesses.maxtac.vtk.io
 spec:
   group: maxtac.vtk.io
   names:
-    kind: ExternalAccess
-    listKind: ExternalAccessList
-    plural: externalaccesses
-    singular: externalaccess
-  scope: Namespaced
+    kind: ClusterExternalAccess
+    listKind: ClusterExternalAccessList
+    plural: clusterexternalaccesses
+    singular: clusterexternalaccess
+  scope: Cluster
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ExternalAccess is the Schema for the externalaccesses API.
+        description: ClusterExternalAccess is the Schema for the clusterexternalaccesses
+          API.
         properties:
           apiVersion:
             description: |-
@@ -37,7 +38,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: ExternalAccessSpec defines the desired state of ExternalAccess.
+            description: ClusterExternalAccessSpec defines the desired state of ClusterExternalAccess.
             properties:
               direction:
                 type: string
@@ -98,7 +99,8 @@ spec:
             - serviceSelector
             type: object
           status:
-            description: ExternalAccessStatus defines the observed state of ExternalAccess.
+            description: ClusterExternalAccessStatus defines the observed state of
+              ClusterExternalAccess.
             properties:
               conditions:
                 items:
@@ -157,9 +159,6 @@ spec:
                   type: object
                 type: array
               netpols:
-                description: |-
-                  INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-                  Important: Run "make" to regenerate code after modifying this file
                 items:
                   properties:
                     name:
