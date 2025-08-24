@@ -99,6 +99,7 @@ This resource grants services access to an external CIDR.
 - `targetCIDRs` (`[]string`, required): The external IPs range to allow traffic to/from. Example: `1.1.1.1/32, 2001:4860:4860::8888/128`.
 - `serviceSelector` (`metav1.LabelSelector`, required): A label selector to find `Service` resources that should be granted this access.
 - `direction` (`string`, optional): Set the policy type of the network policy. Can be overrided by annotation on the service.
+- `duration` (`string` optional): Set the duration of the opened access (ex: 3600s)
 
 **Example (`externalaccess-sample.yaml`):**
 
@@ -130,6 +131,7 @@ Basically the same as the ClusterExternalAccess, but namespaced. The selector wh
 - `[x]targets.namespace` (`string`, optional): the namespace of the service to be targeted. Can be overrided by an annotation on the service.
 - `direction` (`string`, optional): Set the policy type of the network policy. Can be overrided by annotation on the service.
 - `mirrored` (`bool`, optional): Set if the policy will be mirrored, as in completed by an ingress in the targeted namespace if the netpol to be created is an egress from the source namespace.
+- `duration` (`string` optional): Set the duration of the opened access (ex: 3600s)
 
 **Example (`access-sample.yaml`):**
 
