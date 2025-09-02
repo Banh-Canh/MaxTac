@@ -47,14 +47,6 @@ type ClusterExternalAccessReconciler struct {
 	StatusNeedUpdate bool
 }
 
-const (
-	ClusterExternalAccessDirectionAnnotation        = "maxtac.vtk.io.clusterexternalaccess/direction"
-	ClusterExternalAccessOwnerLabel                 = "maxtac.vtk.io.clusterexternalaccess/owner"
-	ClusterExternalAccessServiceOwnerNameLabel      = "maxtac.vtk.io.clusterexternalaccess/serviceOwnerName"
-	ClusterExternalAccessServiceOwnerNamespaceLabel = "maxtac.vtk.io.clusterexternalaccess/serviceOwnerNamespace"
-	ClusterExternalAccessTargetsAnnotation          = "maxtac.vtk.io.clusterexternalaccess/targets"
-)
-
 // +kubebuilder:rbac:groups=maxtac.vtk.io,resources=clusterexternalaccesses,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=maxtac.vtk.io,resources=clusterexternalaccesses/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=maxtac.vtk.io,resources=clusterexternalaccesses/finalizers,verbs=update
@@ -139,7 +131,7 @@ func (r *ClusterExternalAccessReconciler) Reconcile(ctx context.Context, req ctr
 			targetsStr = annotationTargets
 		} else {
 			targetsStr = strings.Join(clusterexternalaccess.Spec.TargetCIDRs, ",")
-			logger.Logger.Info(
+			logger.Logger.Debug(
 				"Annotations targets not found on service, falling back to ClusterExternalAccess spec",
 				"service",
 				service.Name,
@@ -158,7 +150,7 @@ func (r *ClusterExternalAccessReconciler) Reconcile(ctx context.Context, req ctr
 			)
 			direction = annotationDirection
 		} else {
-			logger.Logger.Info(
+			logger.Logger.Debug(
 				"Annotations direction not found on service, falling back to ClusterExternalAccess spec",
 				"service",
 				service.Name,
@@ -292,7 +284,7 @@ func (r *ClusterExternalAccessReconciler) Reconcile(ctx context.Context, req ctr
 				logger.Logger.Error("Error deploying NetworkPolicy.", slog.Any("error", err), "netpol_name", netpolName)
 				// Continue to the next CIDR even if this one fails
 			} else {
-				logger.Logger.Info("Successfully deployed target NetworkPolicy", "name", netpol.Name, "namespace", netpol.Namespace)
+				logger.Logger.Debug("Successfully deployed target NetworkPolicy", "name", netpol.Name, "namespace", netpol.Namespace)
 				deployedNetpols = append(deployedNetpols, vtkiov1alpha1.Netpol{
 					Name:      netpol.Name,
 					Namespace: netpol.Namespace,

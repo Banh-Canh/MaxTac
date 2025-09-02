@@ -21,13 +21,9 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,19 +35,9 @@ import (
 	"github.com/Banh-Canh/maxtac/internal/utils/logger"
 )
 
-const (
-	AccessTargetsAnnotation          = "maxtac.vtk.io.access/targets"
-	AccessDirectionAnnotation        = "maxtac.vtk.io.access/direction"
-	AccessOwnerLabel                 = "maxtac.vtk.io.access/owner"
-	AccessServiceOwnerNameLabel      = "maxtac.vtk.io.access/serviceOwnerName"
-	AccessServiceOwnerNamespaceLabel = "maxtac.vtk.io.access/serviceOwnerNamespace"
-)
-
 // AccessReconciler reconciles a Access object
 type AccessReconciler struct {
-	client.Client
-	Scheme           *runtime.Scheme
-	StatusNeedUpdate bool
+	BaseController
 }
 
 // +kubebuilder:rbac:groups=maxtac.vtk.io,resources=accesses,verbs=get;list;watch;create;update;patch;delete
@@ -63,263 +49,102 @@ type AccessReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *AccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger.Logger.Debug("Starting reconciliation for Access object", "name", req.NamespacedName)
 	access := &vtkiov1alpha1.Access{}
+
+	config := ReconcileConfig{
+		ResourceName:     "Access",
+		IsCluster:        false,
+		AnnotationConfig: GetAnnotationConfig("access"),
+	}
+
+	return r.CommonReconcileLogic(ctx, req, access, config, r.processAccessTargets)
+}
+
+func (r *AccessReconciler) processAccessTargets(
+	ctx context.Context,
+	service corev1.Service,
+	targetsStr string,
+	direction string,
+	resource client.Object,
+) ([]vtkiov1alpha1.Netpol, error) {
 	var deployedNetpols []vtkiov1alpha1.Netpol
 
-	if err := r.Get(ctx, req.NamespacedName, access); err != nil {
-		if k8serrors.IsNotFound(err) {
-			logger.Logger.Debug("Access resource not found. Ignoring since object must be deleted.")
-			return ctrl.Result{}, nil
-		}
-		logger.Logger.Error("Failed to get Access resource.", slog.Any("error", err))
-		return ctrl.Result{}, err
-	}
-
-	// Check for expiration and handle deletion if necessary.
-	if r.isExpired(access) {
-		logger.Logger.Info("Access resource has expired, deleting it now.", "name", access.Name)
-		if err := r.Delete(ctx, access); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to delete expired Access resource: %w", err)
-		}
-		// A deletion request was sent, no need to do further work in this reconcile loop.
-		return ctrl.Result{}, nil
-	}
-
-	// At each reconciliation, check for any NetworkPolicies owned by this Access
-	// whose corresponding Service has been deleted.
-	if err := r.cleanupOrphanedAccessNetworkPolicies(ctx, access); err != nil {
-		logger.Logger.Error("Error during cleanup of orphaned NetworkPolicies.", slog.Any("error", err))
-		return ctrl.Result{}, err // Requeue on cleanup failure
-	}
-
-	// Convert the LabelSelector from the spec into a selector object that the client can use.
-	selector, err := metav1.LabelSelectorAsSelector(access.Spec.ServiceSelector)
+	sourceSvcSelector, sourcePorts, err := r.getServiceDetails(ctx, service.Name, service.Namespace)
 	if err != nil {
-		logger.Logger.Error("Error converting label selector.", slog.Any("error", err), "selector", access.Spec.ServiceSelector)
-		return ctrl.Result{}, fmt.Errorf("failed to convert label selector: %w", err)
+		logger.Logger.Debug("Error getting source service details.", slog.Any("error", err), "service", service.Name)
+		return deployedNetpols, nil // Return partial results instead of failing entirely
 	}
 
-	// List all services in the access that match the label selector.
-	serviceList := &corev1.ServiceList{}
-	if err := r.List(ctx, serviceList, &client.ListOptions{LabelSelector: selector, Namespace: access.Namespace}); err != nil {
-		logger.Logger.Error("Failed to list services with selector.", slog.Any("error", err), "selector", selector.String())
-		return ctrl.Result{}, err
-	}
-
-	// Iterate over each service found by the selector
-	var matchedServices []vtkiov1alpha1.SvcRef
-	for _, service := range serviceList.Items {
-		matchedServices = append(matchedServices, vtkiov1alpha1.SvcRef{
-			Name:      service.Name,
-			Namespace: service.Namespace,
-		})
-
-		var targetsStr string
-		var direction string
-
-		annotations := service.GetAnnotations()
-		annotationTargets, hasTargetsAnnotation := annotations[AccessTargetsAnnotation]
-		annotationDirection, hasDirectionAnnotation := annotations[AccessDirectionAnnotation]
-
-		// Prefer annotations if they are both present
-		if hasTargetsAnnotation {
-			logger.Logger.Debug(
-				"Using targets from service annotations",
-				"service",
-				service.Name,
-				"namespace",
-				service.Namespace,
-			)
-			targetsStr = annotationTargets
-		} else {
-
-			var specTargets []string
-			for _, target := range access.Spec.Targets {
-				if target.ServiceName != "" && target.Namespace != "" {
-					specTargets = append(specTargets, fmt.Sprintf("%s,%s", target.ServiceName, target.Namespace))
-				}
-			}
-			targetsStr = strings.Join(specTargets, ";")
-			logger.Logger.Info(
-				"Annotations targets not found on service, falling back to Access spec",
-				"service",
-				service.Name,
-				"namespace",
-				service.Namespace,
-			)
-		}
-		if hasDirectionAnnotation {
-			logger.Logger.Debug(
-				"Using direction from service annotations",
-				"service",
-				service.Name,
-				"namespace",
-				service.Namespace,
-			)
-			direction = annotationDirection
-		} else {
-			direction = access.Spec.Direction
-
-			logger.Logger.Info(
-				"Annotations direction not found on service, falling back to Access spec",
-				"service",
-				service.Name,
-				"namespace",
-				service.Namespace,
-			)
-		}
-
-		// If after checking both sources, we still have no targets or direction, skip this service.
-		if targetsStr == "" || direction == "" {
-			logger.Logger.Info(
-				"No targets or direction defined in either annotations or spec; skipping service",
-				"service", service.Name,
-				"namespace", service.Namespace,
-			)
+	targets := strings.Split(targetsStr, ";")
+	for _, targetPair := range targets {
+		trimmedPair := strings.TrimSpace(targetPair)
+		if trimmedPair == "" {
 			continue
 		}
 
-		// Normalize and validate the direction annotation value.
-		direction = strings.ToLower(direction)
-		validDirections := map[string]struct{}{
-			"ingress": {},
-			"egress":  {},
-			"all":     {},
-		}
-		if _, isValid := validDirections[direction]; !isValid {
+		parts := strings.Split(trimmedPair, ",")
+		if len(parts) != 2 {
 			logger.Logger.Error(
-				"Invalid direction value in service annotation, skipping service",
-				"service", service.Name,
-				"namespace", service.Namespace,
-				"annotation", AccessDirectionAnnotation,
-				"invalid_value", annotations[AccessDirectionAnnotation],
-				"expected_values", "ingress, egress, or all",
+				"Invalid target format in service annotation",
+				"service", service.Name, "namespace", service.Namespace,
+				"annotation_value", trimmedPair, "expected_format", "name,namespace",
 			)
-			continue // Skip processing for this service.
+			continue // Skip malformed target
+		}
+		targetName := strings.TrimSpace(parts[0])
+		targetNs := strings.TrimSpace(parts[1])
+
+		logger.Logger.Debug("Processing target for source service", "target_name", targetName, "target_namespace", targetNs)
+
+		targetSvcSelector, _, err := r.getServiceDetails(ctx, targetName, targetNs)
+		if err != nil {
+			logger.Logger.Debug("Error getting target service details.", slog.Any("error", err), "target_service", targetName)
+			continue // Skip this target if its details can't be fetched
 		}
 
-		// This annotated service is our source.
-		logger.Logger.Info(
-			"Found matched service",
-			"source_service",
-			service.Name,
-			"namespace",
+		// Define common labels for both network policies
+		netpolLabels := map[string]string{
+			AccessOwnerLabel:                 resource.GetName(),
+			AccessServiceOwnerNameLabel:      service.Name,
+			AccessServiceOwnerNamespaceLabel: service.Namespace,
+		}
+
+		directionSuffix := r.getDirectionSuffix(direction)
+
+		// This policy controls traffic leaving (egress) or entering (ingress) the source service.
+		sourceNetpolName := fmt.Sprintf(
+			"%s--%s-%s---%s-%s-%s",
+			resource.GetName(),
 			service.Namespace,
+			service.Name,
+			targetName,
+			targetNs,
+			directionSuffix,
 		)
 
-		sourceSvcSelector, sourcePorts, err := r.getServiceDetails(ctx, service.Name, service.Namespace)
-		if err != nil {
-			logger.Logger.Error("Error getting source service details.", slog.Any("error", err), "service", service.Name)
-			continue // An error here should not stop reconciliation for other services
-		}
-		targets := strings.Split(targetsStr, ";")
-		for _, targetPair := range targets {
-			trimmedPair := strings.TrimSpace(targetPair)
-			if trimmedPair == "" {
-				continue
-			}
+		sourceNetpol := networkpolicy.DefineAccessNetworkPolicy(
+			sourceNetpolName,
+			service.Namespace,
+			sourceSvcSelector,
+			targetSvcSelector,
+			targetNs,
+			sourcePorts,
+			direction,
+		)
+		sourceNetpol.Labels = netpolLabels
 
-			parts := strings.Split(trimmedPair, ",")
-			if len(parts) != 2 {
-				logger.Logger.Error(
-					"Invalid target format in service annotation",
-					"service", service.Name, "namespace", service.Namespace,
-					"annotation_value", trimmedPair, "expected_format", "name,namespace",
-				)
-				continue // Skip malformed target
-			}
-			targetName := strings.TrimSpace(parts[0])
-			targetNs := strings.TrimSpace(parts[1])
-
-			logger.Logger.Debug("Processing target for source service", "target_name", targetName, "target_namespace", targetNs)
-
-			targetSvcSelector, _, err := r.getServiceDetails(ctx, targetName, targetNs)
-			if err != nil {
-				logger.Logger.Error("Error getting target service details.", slog.Any("error", err), "target_service", targetName)
-				continue // Skip this target if its details can't be fetched
-			}
-
-			// Define common labels for both network policies
-			netpolLabels := map[string]string{
-				AccessOwnerLabel:                 access.Name,
-				AccessServiceOwnerNameLabel:      service.Name,
-				AccessServiceOwnerNamespaceLabel: service.Namespace,
-			}
-			var directionSuffix string
-			switch direction {
-			case "ingress":
-				directionSuffix = "ing"
-			case "egress":
-				directionSuffix = "egr"
-			case "all":
-				directionSuffix = "all"
-			}
-
-			// This policy controls traffic leaving (egress) or entering (ingress) the source service.
-			sourceNetpolName := fmt.Sprintf(
-				"%s--%s-%s---%s-%s-%s",
-				access.Name,
-				service.Namespace,
-				service.Name,
-				targetName,
-				targetNs,
-				directionSuffix,
-			)
-
-			sourceNetpol := networkpolicy.DefineAccessNetworkPolicy(
-				sourceNetpolName,
-				service.Namespace,
-				sourceSvcSelector,
-				targetSvcSelector,
-				targetNs,
-				sourcePorts,
-				direction,
-			)
-			sourceNetpol.Labels = netpolLabels
-
-			if err := r.deployResource(ctx, access, sourceNetpol, &networkingv1.NetworkPolicy{}, networkpolicy.ExtractNetpolSpec, false); err != nil {
-				logger.Logger.Error("Error deploying source NetworkPolicy.", slog.Any("error", err), "netpol_name", sourceNetpolName)
-			} else {
-				logger.Logger.Info("Successfully deployed source NetworkPolicy", "name", sourceNetpolName, "namespace", service.Namespace)
-				deployedNetpols = append(deployedNetpols, vtkiov1alpha1.Netpol{
-					Name:      sourceNetpolName,
-					Namespace: targetNs,
-				})
-
-			}
+		if err := r.deployResource(ctx, resource.(*vtkiov1alpha1.Access), sourceNetpol, &networkingv1.NetworkPolicy{}, networkpolicy.ExtractNetpolSpec, false); err != nil {
+			logger.Logger.Error("Error deploying source NetworkPolicy.", slog.Any("error", err), "netpol_name", sourceNetpolName)
+		} else {
+			logger.Logger.Debug("Successfully deployed source NetworkPolicy", "name", sourceNetpolName, "namespace", service.Namespace)
+			deployedNetpols = append(deployedNetpols, vtkiov1alpha1.Netpol{
+				Name:      sourceNetpolName,
+				Namespace: service.Namespace,
+			})
 		}
 	}
 
-	// Set access ready status
-	// Update netpols in status
-	finalNetpols, err := r.reconcileNetpolStatus(ctx, access, deployedNetpols)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	// Update services in status
-	finalServices, err := r.reconcileServiceStatus(ctx, access, matchedServices)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	access.Status.Netpols = finalNetpols
-	access.Status.Services = finalServices
-	if err := r.updateStatus(ctx, access); err != nil {
-		logger.Logger.Error("Error updating status.", slog.Any("error", err))
-	}
-
-	// Calculate and return a targeted requeue duration if the resource has an expiration.
-	if access.Status.ExpirationTimestamp != nil {
-		timeRemaining := time.Until(access.Status.ExpirationTimestamp.Time)
-		if timeRemaining > 0 {
-			logger.Logger.Debug("Requeuing to check for expiration.", "name", access.Name, "duration", timeRemaining)
-			return ctrl.Result{RequeueAfter: timeRemaining}, nil
-		}
-	}
-
-	return ctrl.Result{}, nil
+	return deployedNetpols, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

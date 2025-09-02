@@ -39,16 +39,6 @@ import (
 	"github.com/Banh-Canh/maxtac/internal/utils/logger"
 )
 
-const (
-	apiGroup                                = "vtkiov1alpha1"
-	accessFinalizer                         = apiGroup + "/finalizer"
-	ClusterAccessTargetsAnnotation          = "maxtac.vtk.io.clusteraccess/targets"
-	ClusterAccessDirectionAnnotation        = "maxtac.vtk.io.clusteraccess/direction"
-	ClusterAccessOwnerLabel                 = "maxtac.vtk.io.clusteraccess/owner"
-	ClusterAccessServiceOwnerNameLabel      = "maxtac.vtk.io.clusteraccess/serviceOwnerName"
-	ClusterAccessServiceOwnerNamespaceLabel = "maxtac.vtk.io.clusteraccess/serviceOwnerNamespace"
-)
-
 // ClusterAccessReconciler reconciles a ClusterAccess object
 type ClusterAccessReconciler struct {
 	client.Client
@@ -143,7 +133,7 @@ func (r *ClusterAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				}
 			}
 			targetsStr = strings.Join(specTargets, ";")
-			logger.Logger.Info(
+			logger.Logger.Debug(
 				"Annotations targets not found on service, falling back to ClusterAccess spec",
 				"service",
 				service.Name,
@@ -163,7 +153,7 @@ func (r *ClusterAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		} else {
 			direction = access.Spec.Direction
 
-			logger.Logger.Info(
+			logger.Logger.Debug(
 				"Annotations direction not found on service, falling back to ClusterAccess spec",
 				"service",
 				service.Name,
@@ -283,7 +273,7 @@ func (r *ClusterAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			if err := r.deployResource(ctx, access, sourceNetpol, &networkingv1.NetworkPolicy{}, networkpolicy.ExtractNetpolSpec, false); err != nil {
 				logger.Logger.Error("Error deploying source NetworkPolicy.", slog.Any("error", err), "netpol_name", sourceNetpolName)
 			} else {
-				logger.Logger.Info("Successfully deployed source NetworkPolicy", "name", sourceNetpolName, "namespace", service.Namespace)
+				logger.Logger.Debug("Successfully deployed source NetworkPolicy", "name", sourceNetpolName, "namespace", service.Namespace)
 				deployedNetpols = append(deployedNetpols, vtkiov1alpha1.Netpol{
 					Name:      sourceNetpolName,
 					Namespace: targetNs,
@@ -337,7 +327,7 @@ func (r *ClusterAccessReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				if err := r.deployResource(ctx, access, targetNetpol, &networkingv1.NetworkPolicy{}, networkpolicy.ExtractNetpolSpec, false); err != nil {
 					logger.Logger.Error("Error deploying target NetworkPolicy.", slog.Any("error", err), "netpol_name", targetNetpolName)
 				} else {
-					logger.Logger.Info("Successfully deployed target NetworkPolicy", "name", targetNetpolName, "namespace", targetNs)
+					logger.Logger.Debug("Successfully deployed target NetworkPolicy", "name", targetNetpolName, "namespace", targetNs)
 					deployedNetpols = append(deployedNetpols, vtkiov1alpha1.Netpol{
 						Name:      targetNetpolName,
 						Namespace: targetNs,
